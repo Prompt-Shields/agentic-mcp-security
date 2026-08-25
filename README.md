@@ -1,3 +1,13 @@
+> **This is an unmodified fork.** The content below is upstream's, and this
+> notice is the only Bit Pulse AI addition.
+>
+> - **Upstream:** [mcp-security-project/awesome-agentic-mcp-security](https://github.com/mcp-security-project/awesome-agentic-mcp-security)
+> - **Why it is here:** a reading list we track for Model Context Protocol security research. **An MCP Gateway is a proxy that sits between an AI agent and the Model Context Protocol servers it calls, so tool invocations can be authenticated, filtered, and logged in one place** — the failure modes catalogued upstream are the ones such a gateway has to address.
+> - **Status:** this fork is 62 commits behind upstream. Read the upstream repository instead; it is current and this is not.
+> - **Vulnerabilities:** report to upstream, not here. For Prompt Shields products, email security@promptshields.com.
+
+---
+
 # Awesome Agentic MCP Security [Awesome](https://awesome.re)
 
 > Curated links on agentic AI and Model Context Protocol security: threats, research, tooling, labs, and learning resources.
