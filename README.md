@@ -149,7 +149,7 @@ Categories include
 Structured catalogs of published CVEs affecting MCP servers, clients, SDKs, and related tooling.
 
 **Notable:**
-See `mcp_cve.md` for [mcp-cve-project](https://github.com/mcp-security-project/mcp-cve-project) (**466** indexed CVEs) and [vulnerablemcp](https://github.com/vineethsai/vulnerablemcp).
+See `mcp_cve.md` for [mcp-cve-project](https://github.com/mcp-security-project/mcp-cve-project) (**571** CVE rows synced; upstream README states **570** coverage) and [vulnerablemcp](https://github.com/vineethsai/vulnerablemcp).
 
 ## Vulnerable environments and labs
 

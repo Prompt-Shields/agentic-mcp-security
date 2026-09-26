@@ -2,7 +2,7 @@
 
 Educational and research environments for MCP security testing. **Tables** summarize difficulty and defenses. Run all labs in isolated VMs or containers — never in production or on networks with real credentials.
 
-**Last Update**: 2026-08-25
+**Last Update**: 2026-09-27
 
 ## Contents
 
@@ -46,6 +46,13 @@ Educational and research environments for MCP security testing. **Tables** summa
 | [vulnMCP][link_github_com_n0v1chok_vulnmcp] : N0V1CHOK | stdio server, terminal UI, gamified scoring | 8 progressive challenges: parameter injection, resource URI manipulation, context poisoning, prompt chains, sampling abuse, protocol injection | ![](https://badgen.net/github/last-commit/N0V1CHOK/vulnMCP) |
 | [Vulnerable MCP Server (JoyGhoshs)][link_github_com_joyghoshs_vulnerable_mcp_server] : JoyGhoshs | stdio tools, Docker isolation | 14 vuln classes: OS command injection, path traversal, pickle RCE, arbitrary Python exec, SSRF, tool poisoning, rug pull, shadow backdoors | ![](https://badgen.net/github/last-commit/JoyGhoshs/vulnerable-mcp-server) |
 | [MCP Poisoning PoC][link_github_com_gensecaihq_mcp_poisoning_poc] : GenSecAI | Tools, descriptions, agent workflows | Tool poisoning in real-world agent flows | ![](https://badgen.net/github/last-commit/gensecaihq/mcp-poisoning-poc) |
+| [EVMCP][link_github_com_psiinon_evmcp] : Simon Bennetts | HTTP MCP endpoint, Docker, JSON-RPC tools, scanner target | OWASP VWAD-listed DAST target: SQLi, command injection, path traversal, SSRF, XXE, insecure deserialization, IDOR, weak auth, prompt injection | ![](https://badgen.net/github/last-commit/psiinon/evmcp) |
+| [MCP Security Lab][link_github_com_anita_ani_mcp_security_lab] : Anita-ani | Vulnerable, secured, and exploit implementations per module | Five OWASP MCP Top 10 modules: token exposure, command injection, broken auth, shadow servers, context over-sharing | ![](https://badgen.net/github/last-commit/Anita-ani/mcp-security-lab) |
+| [MCP CTF Challenge][link_github_com_aganita_mcp_ctf_challenge] : aganita | Python server, seven CTF challenges, Docker | Prompt injection, tool-description poisoning, file access, token exposure, shadowing, indirect injection, privilege escalation | ![](https://badgen.net/github/last-commit/aganita/mcp-ctf-challenge) |
+| [evil-mcp-lab][link_github_com_rafsan_huseynov_evil_mcp_lab] : rafsan-huseynov | Deliberately malicious server, local collector, static/runtime governance fixtures | Eight confined attacks: poisoning, rug pull, shadowing, exfiltration, sensitive-file access, injection relay, schema mismatch, sandbox escape | ![](https://badgen.net/github/last-commit/rafsan-huseynov/evil-mcp-lab) |
+| [MCP Agent Security Dojo][link_github_com_dgenio_mcp_agent_security_dojo] : dgenio | Local simulated tools, unsafe/governed modes, policy gates, audit traces | Prompt injection, tool poisoning, over-permissioning, privilege escalation, context controls, capability scoping | ![](https://badgen.net/github/last-commit/dgenio/mcp-agent-security-dojo) |
+| [MCP Security Patterns][link_github_com_dnyandeobharambe_mcp_security_patterns] : dnyandeobharambe | Attack demos, defenses, tests, combined full-stack demo | Ten production-oriented security patterns mapped to all OWASP MCP Top 10 categories | ![](https://badgen.net/github/last-commit/dnyandeobharambe/mcp-security-patterns) |
+| [Telekom MCP Security][link_github_com_telekom_mcp_security] : Deutsche Telekom | Interactive UI, real-time chat, sandboxed demo servers, slide deck | Safe baseline plus prompt injection, tool shadowing, Unicode tool poisoning, and data poisoning | ![](https://badgen.net/github/last-commit/telekom/mcp-security) |
 
 ---
 
@@ -76,6 +83,8 @@ All nine servers live in [Vulnerable MCP Servers Lab][link_github_com_appsecco_v
 | [mcploitable][link_github_com_agilealligator_mcploitable] | OWASP Top 10 for Agentic Applications | "Metasploitable for MCP" — single vulnerable server mapped to agentic-application risk categories for red-team training. | ![](https://badgen.net/github/last-commit/agileAlligator/mcploitable) |
 | [IMCP (Insecure Model Context Protocol)][link_github_com_nav33n25_imcp] | Enterprise scenarios across OWASP MCP themes | 14 critical weaknesses in business contexts: consent fatigue, compliance-scanner bypass, human-factor exploitation, progressive red-flag training modules. | ![](https://badgen.net/github/last-commit/nav33n25/imcp) |
 | [MCP Attack & Def3nd][link_github_com_hello_urvesh_mcp_attack_def3nd] | 8 OWASP MCP Top 10 risks | Nullcon 2026 workshop pairs for credential leakage, mass assignment, code injection, prompt injection, auth bypass, audit gaps, SSRF, context sharing. | ![](https://badgen.net/github/last-commit/hello-urvesh/mcp-attack-def3nd) |
+| [MCP Security Lab][link_github_com_anita_ani_mcp_security_lab] | 5 OWASP MCP Top 10 risks | Vulnerable server, secured implementation, and exploit for token exposure, command injection, broken auth, shadow servers, and context over-sharing. | ![](https://badgen.net/github/last-commit/Anita-ani/mcp-security-lab) |
+| [MCP Security Patterns][link_github_com_dnyandeobharambe_mcp_security_patterns] | All 10 OWASP MCP Top 10 categories | Runnable attack demos, defense implementations, and tests for every category plus a combined full-stack example. | ![](https://badgen.net/github/last-commit/dnyandeobharambe/mcp-security-patterns) |
 
 ---
 
@@ -90,6 +99,9 @@ All nine servers live in [Vulnerable MCP Servers Lab][link_github_com_appsecco_v
 | [DVMCP / NovaTech (Kyze-Labs)][link_github_com_kyze_labs_damn_vulnerable_mcp_server] | 38 challenges with remediation guidance per category | DVWA-style progression across 19 vulnerability classes in a fictional enterprise (NovaTech Solutions) | ![](https://badgen.net/github/last-commit/Kyze-Labs/damn-vulnerable-MCP-Server) |
 | [Damn Vulnerable AI Agent (DVAA)][link_github_com_opena2a_org_damn_vulnerable_ai_agent] | Hardened reference agent (port 7001) vs. vulnerable variants | Comparing ToolBot/PluginBot/ProxyBot MCP agents against AIM-protected counterparts | ![](https://badgen.net/github/last-commit/opena2a-org/damn-vulnerable-ai-agent) |
 | [Sherpa MCP Security Workshop][link_github_com_azure_samples_sherpa] | Base Camp → Summit progressive hardening + red/blue validation | Cloud/enterprise defense-in-depth: OAuth 2.1, MI, Key Vault, gateway, content safety, logging | ![](https://badgen.net/github/last-commit/Azure-Samples/sherpa) |
+| [MCP Security Lab][link_github_com_anita_ani_mcp_security_lab] | Vulnerable, secured, and exploit directories per module | Direct code comparison for five OWASP MCP risks with reproducible exploit examples | ![](https://badgen.net/github/last-commit/Anita-ani/mcp-security-lab) |
+| [MCP Agent Security Dojo][link_github_com_dgenio_mcp_agent_security_dojo] | `run-unsafe` → `run-safe` scenarios | Compare ambient authority with policy gates, context firewalls, scoped capabilities, and audit traces | ![](https://badgen.net/github/last-commit/dgenio/mcp-agent-security-dojo) |
+| [MCP Security Patterns][link_github_com_dnyandeobharambe_mcp_security_patterns] | Attack demo → defense implementation → regression test | Validate mitigations for all ten OWASP MCP risk categories | ![](https://badgen.net/github/last-commit/dnyandeobharambe/mcp-security-patterns) |
 
 ---
 
@@ -110,6 +122,8 @@ All nine servers live in [Vulnerable MCP Servers Lab][link_github_com_appsecco_v
 | [cursor-jira-mcp-zero-click][link_vulnerablemcp_info_vuln_cursor_jira_mcp_zero_click_html] | AgentFlayer / Jira toxic flow | Malicious Jira ticket + privileged local tools + outbound sink; practice toxic-flow analysis and scoped tool policies. | 2026-08-25 |
 | [whatsapp-message-exfiltration][link_vulnerablemcp_info_vuln_whatsapp_message_exfiltration_html] | Messaging bridge exfiltration | Co-installed server alters behavior to read other server messages; practice cross-server isolation and change detection. | 2026-08-25 |
 | [rug-pulls-silent-redefinition][link_vulnerablemcp_info_vuln_rug_pulls_silent_redefinition_html] | Rug pull via description mutation | Tool mutates after approval; practice description hashing, re-approval gates, and ETDI-style signing. | 2026-08-25 |
+| [MCP Agent Security Dojo][link_github_com_dgenio_mcp_agent_security_dojo] | Prompt injection in tool results | Unsafe flow exfiltrates simulated PII; governed flow applies context filtering, redaction, and policy denial. | ![](https://badgen.net/github/last-commit/dgenio/mcp-agent-security-dojo) |
+| [Telekom MCP Security][link_github_com_telekom_mcp_security] | Prompt and data poisoning demos | Interactive sandbox shows injected instructions and corrupted data influencing an agent, with a safe baseline for comparison. | ![](https://badgen.net/github/last-commit/telekom/mcp-security) |
 
 ---
 
@@ -130,6 +144,9 @@ All nine servers live in [Vulnerable MCP Servers Lab][link_github_com_appsecco_v
 | [MCP Shark Security Lab][link_github_com_mcp_shark_mcp_shark_security_lab] | Scanner / detection engineering | Toxic corpus, CI integration, YARA-style rules for poisoned metadata patterns | ![](https://badgen.net/github/last-commit/mcp-shark/mcp-shark-security-lab) |
 | [MCPHammer][link_github_com_praetorian_inc_mcphammer] | Offensive testing framework | Text injection, remote management, init-tool download/execute, C2-via-tool-argument scanning demos | ![](https://badgen.net/github/last-commit/praetorian-inc/MCPHammer) |
 | [Damn Vulnerable AI Agent (DVAA)][link_github_com_opena2a_org_damn_vulnerable_ai_agent] | PluginBot tool registry poisoning | Supply-chain style tool registry tampering in multi-agent MCP setup. | ![](https://badgen.net/github/last-commit/opena2a-org/damn-vulnerable-ai-agent) |
+| [evil-mcp-lab][link_github_com_rafsan_huseynov_evil_mcp_lab] | Static/runtime safety-tool evaluation | Detect poisoning, metadata mutation, cross-tool shadowing, injection relay, and schema mismatch; verify blocking and audit records. | ![](https://badgen.net/github/last-commit/rafsan-huseynov/evil-mcp-lab) |
+| [MCP CTF Challenge][link_github_com_aganita_mcp_ctf_challenge] | Beginner/intermediate CTF practice | Exploit tool-description poisoning, indirect injection, and dynamic tool-registration shadowing. | ![](https://badgen.net/github/last-commit/aganita/mcp-ctf-challenge) |
+| [Telekom MCP Security][link_github_com_telekom_mcp_security] | Interactive visual demonstrations | Compare safe baseline behavior with Unicode-hidden poisoning and compromised-server tool shadowing. | ![](https://badgen.net/github/last-commit/telekom/mcp-security) |
 
 ---
 
@@ -146,6 +163,8 @@ All nine servers live in [Vulnerable MCP Servers Lab][link_github_com_appsecco_v
 | [MCP Breach-to-Fix Labs][link_github_com_pawelkozy_mcp_breach_to_fix_labs] | Filesystem path traversal, git command injection | Real CVE/incident patterns; compare vulnerable vs. canonical-path / execFile secure builds. | ![](https://badgen.net/github/last-commit/PawelKozy/mcp-breach-to-fix-labs) |
 | [Damn Vulnerable AI Agent (DVAA)][link_github_com_opena2a_org_damn_vulnerable_ai_agent] | ToolBot / DataBot MCP agents | Path traversal, SSRF, command injection, SQL injection via MCP tool surface. | ![](https://badgen.net/github/last-commit/opena2a-org/damn-vulnerable-ai-agent) |
 | [beejak Vulnerable MCP Server][link_github_com_beejak_vulnerable_mcp_server] | Deserialization, MarkItDown SSRF | CVE-mapped advanced tiers including CWE-502 and unpatched fetch SSRF chains. | ![](https://badgen.net/github/last-commit/beejak/Vulnerable-MCP-Server) |
+| [EVMCP][link_github_com_psiinon_evmcp] | HTTP DAST target | Fuzz JSON-RPC parameters for SQLi, command injection, path traversal, SSRF, XXE, insecure deserialization, and IDOR. | ![](https://badgen.net/github/last-commit/psiinon/evmcp) |
+| [MCP CTF Challenge][link_github_com_aganita_mcp_ctf_challenge] | Excessive file access and privilege escalation | Practice unrestricted file access, token exposure, and chained escalation in a compact CTF server. | ![](https://badgen.net/github/last-commit/aganita/mcp-ctf-challenge) |
 
 ---
 
@@ -161,6 +180,8 @@ All nine servers live in [Vulnerable MCP Servers Lab][link_github_com_appsecco_v
 | [MCP-Goat (OWASP)][link_github_com_satishpatnayak_mcp_goat] | MCP09 shadow servers, MCP08 data exfiltration | Rogue MCP server registration and insufficient logging/telemetry controls | ![](https://badgen.net/github/last-commit/satishpatnayak/MCP-Goat) |
 | [IMCP][link_github_com_nav33n25_imcp] | Consent fatigue, compliance-scanner bypass | Human-factor misconfigurations that bypass approval-based security controls | ![](https://badgen.net/github/last-commit/nav33n25/imcp) |
 | [Damn Vulnerable AI Agent (DVAA)][link_github_com_opena2a_org_damn_vulnerable_ai_agent] | ProxyBot tool MITM, no TLS pinning | MCP proxy misconfiguration enabling tool interception between agent and server. | ![](https://badgen.net/github/last-commit/opena2a-org/damn-vulnerable-ai-agent) |
+| [MCP Security Lab][link_github_com_anita_ani_mcp_security_lab] | Shadow-server and context-sharing modules | Reproduce an exposed internal server and cross-session data leakage, then compare secured implementations. | ![](https://badgen.net/github/last-commit/Anita-ani/mcp-security-lab) |
+| [evil-mcp-lab][link_github_com_rafsan_huseynov_evil_mcp_lab] | Schema mismatch, sandbox-escape attempts, hidden side effects | Evaluate whether static scanners and runtime gateways detect or block malicious-but-well-formed tools. | ![](https://badgen.net/github/last-commit/rafsan-huseynov/evil-mcp-lab) |
 
 ---
 
@@ -192,6 +213,8 @@ All nine servers live in [Vulnerable MCP Servers Lab][link_github_com_appsecco_v
 | [Sherpa MCP Security Workshop][link_github_com_azure_samples_sherpa] | OAuth 2.1, managed identity, private endpoints | Enterprise identity and network isolation before exposing remote MCP in Azure | ![](https://badgen.net/github/last-commit/Azure-Samples/sherpa) |
 | [vulnMCP][link_github_com_n0v1chok_vulnmcp] | Sampling manipulation, protocol message injection | Validate MCP protocol messages and restrict sampling capability abuse | ![](https://badgen.net/github/last-commit/N0V1CHOK/vulnMCP) |
 | [microsoft-markitdown-mcp-ssrf][link_vulnerablemcp_info_vuln_markitdown_ssrf_html] | MarkItDown MCP SSRF | Unpatched fetch SSRF to cloud metadata; pair with beejak ADVANCED-001 or advisory reading before reproduction. | 2026-08-25 |
+| [MCP Auth Playground][link_github_com_gravitee_io_labs_mcp_auth_playground] | Interactive OAuth 2.1 flow | Step through protected-resource discovery, dynamic client registration, PKCE, authorization code exchange, tokens, and authenticated MCP calls. | ![](https://badgen.net/github/last-commit/gravitee-io-labs/MCP-Auth-Playground) |
+| [Go MCP OAuth Workshop][link_github_com_go_training_mcp_workshop] | OAuth attacks and protocol defenses | Runnable labs for audience binding, authorization-server mix-up defense, JWKS/introspection, DCR, and client ID metadata documents. | ![](https://badgen.net/github/last-commit/go-training/mcp-workshop) |
 
 ---
 
@@ -201,7 +224,7 @@ Broader agent platforms that include MCP-specific vulnerable servers alongside A
 
 | Resource | Protocols | MCP-relevant agents / labs | Last Update |
 | --- | --- | --- | --- |
-| [Damn Vulnerable AI Agent (DVAA)][link_github_com_opena2a_org_damn_vulnerable_ai_agent] | MCP, A2A, OpenAI-compatible chat | ToolBot (70010), DataBot (7011), PluginBot (7012), ProxyBot (7013); hardened reference on port 7001 | ![](https://badgen.net/github/last-commit/opena2a-org/damn-vulnerable-ai-agent) |
+| [Damn Vulnerable AI Agent (DVAA)][link_github_com_opena2a_org_damn_vulnerable_ai_agent] | MCP, A2A, OpenAI-compatible chat | ToolBot (7010), DataBot (7011), PluginBot (7012), ProxyBot (7013); hardened reference on port 7001 | ![](https://badgen.net/github/last-commit/opena2a-org/damn-vulnerable-ai-agent) |
 | [MCP Attack Labs][link_github_com_aminrj_labs_mcp_attack_labs] | MCP, A2A, RAG, memory | Lab 07 flagship kill chain crosses MCP→A2A trust boundary; Lab 03 automated red-team with PyRIT + Promptfoo | ![](https://badgen.net/github/last-commit/aminrj-labs/mcp-attack-labs) |
 | [MCPGoat][link_github_com_sabyasachidhal_mcpgoat] | MCP Streamable HTTP | Victim-agent harness demonstrates real LLM agent exploitation impact beyond raw tool calls | ![](https://badgen.net/github/last-commit/SabyasachiDhal/MCPGoat) |
 | [mcploitable][link_github_com_agilealligator_mcploitable] | MCP | Single-server agentic risk mapping for scanner and red-team baseline testing | ![](https://badgen.net/github/last-commit/agileAlligator/mcploitable) |
@@ -245,6 +268,15 @@ Use these to map CVEs and published incidents to hands-on labs above — not sta
 [link_github_com_satishpatnayak_mcp_goat]: https://github.com/satishpatnayak/MCP-Goat
 [link_github_com_truststrikelabs_brokenmcp]: https://github.com/truststrikelabs/BrokenMCP
 [link_github_com_vineethsai_vulnerablemcp]: https://github.com/vineethsai/vulnerablemcp
+[link_github_com_aganita_mcp_ctf_challenge]: https://github.com/aganita/mcp-ctf-challenge
+[link_github_com_anita_ani_mcp_security_lab]: https://github.com/Anita-ani/mcp-security-lab
+[link_github_com_dgenio_mcp_agent_security_dojo]: https://github.com/dgenio/mcp-agent-security-dojo
+[link_github_com_dnyandeobharambe_mcp_security_patterns]: https://github.com/dnyandeobharambe/mcp-security-patterns
+[link_github_com_go_training_mcp_workshop]: https://github.com/go-training/mcp-workshop/tree/main/03-oauth-mcp
+[link_github_com_gravitee_io_labs_mcp_auth_playground]: https://github.com/gravitee-io-labs/MCP-Auth-Playground
+[link_github_com_psiinon_evmcp]: https://github.com/psiinon/evmcp
+[link_github_com_rafsan_huseynov_evil_mcp_lab]: https://github.com/rafsan-huseynov/evil-mcp-lab
+[link_github_com_telekom_mcp_security]: https://github.com/telekom/mcp-security
 [link_vulnerablemcp_info]: https://vulnerablemcp.info/
 [link_vulnerablemcp_info_vuln_cursor_jira_mcp_zero_click_html]: https://vulnerablemcp.info/vuln/cursor-jira-mcp-zero-click.html
 [link_vulnerablemcp_info_vuln_github_mcp_exploit_html]: https://vulnerablemcp.info/vuln/github-mcp-exploit.html
