@@ -4,7 +4,7 @@ import pytest
 
 from mcp import Client
 
-from awesome_mcp_security.catalog import Catalog, clean, github_repo, normalize_url, parse_topic
+from awesome_mcp_security.catalog import Catalog, clean, github_repo, normalize_url, parse_topic, stem, tokenize
 from awesome_mcp_security.server import build_server, default_content_dir
 
 FIXTURE = """\
@@ -108,9 +108,26 @@ def test_clean():
 def test_search_ranks_title_matches(sample_dir: Path):
     catalog = Catalog(sample_dir)
     assert [e.title for e in catalog.search("scanner")][0] == "Scanner"
-    assert [e.title for e in catalog.search("poison")] == ["Scanner"]  # substring match
-    assert catalog.search("poisoning nonexistentword") == []  # all terms must match
+    assert [e.title for e in catalog.search("poisoned")] == ["Scanner"]  # stems meet
+    assert [e.title for e in catalog.search("how do I find tool poisoning nonexistentword")][0] == "Scanner"
+    assert catalog.search("nonexistentword") == []
     assert catalog.search("   ") == []
+    assert catalog.search("the and of") == []  # stopwords only
+
+
+def test_tokenize():
+    assert tokenize("What scanners detect tool-poisoning?") == ["scanner", "detect", "tool-poison", "tool", "poison"]
+    assert stem("ss") == "ss" and stem("access") == "access" and stem("policies") == "policy"
+
+
+def test_search_dedupes_by_url(tmp_path: Path):
+    (tmp_path / "mcp_dupes.md").write_text(
+        "# Dupes\n\n## A\n\n- [Lab](https://example.com/lab) - prompt injection lab\n\n"
+        "## B\n\n- [Lab](https://example.com/lab/) - lab\n- [Other lab](https://example.com/other) - lab\n"
+    )
+    hits = Catalog(tmp_path).search("lab")
+    assert len(hits) == 2  # the two copies of the lab collapse into one
+    assert {e.url.rstrip("/") for e in hits} == {"https://example.com/lab", "https://example.com/other"}
 
 
 def test_missing_content_dir(tmp_path: Path):

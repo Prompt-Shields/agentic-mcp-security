@@ -9,7 +9,9 @@ bare link lines. Links are either inline (`[text](url)`) or reference-style
 from __future__ import annotations
 
 import html
+import math
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -244,8 +246,32 @@ def parse_topic(path: Path) -> Topic:
     return Topic(slug=slug, title=title or slug, path=path, sections=sections, entries=entries)
 
 
+# Words that carry no meaning in a search over this list.
+_STOPWORDS = frozenset(
+    "a an and are as at be by can do does for from how i in is it of on or that the this to "
+    "what when where which who why with about any are some me my you your".split()
+)
+TITLE_WEIGHT = 3  # a title word counts as this many body words
+_BM25_K1, _BM25_B = 1.2, 0.75
+
+
+def stem(word: str) -> str:
+    """Very light stemming, so "scanners", "scanning" and "scanner" meet."""
+    if word.isdigit() or len(word) <= 3:
+        return word
+    for suffix, keep in (("ies", "y"), ("ing", ""), ("ers", "er"), ("ed", ""), ("es", "e"), ("s", "")):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3 and not word.endswith("ss"):
+            return word[: -len(suffix)] + keep
+    return word
+
+
 def tokenize(text: str) -> list[str]:
-    return _WORD.findall(text.lower())
+    """Search terms: lower-cased stems, with hyphenated words also split into their parts."""
+    terms = []
+    for word in _WORD.findall(text.lower()):
+        parts = [word, *re.split(r"[-.]", word)] if re.search(r"[-.]", word) else [word]
+        terms.extend(stem(w) for w in parts if w and w not in _STOPWORDS)
+    return terms
 
 
 class Catalog:
@@ -256,42 +282,54 @@ class Catalog:
             raise FileNotFoundError(f"no {TOPIC_GLOB} topic pages in {content_dir}")
         self.topics = {slug_for(p): parse_topic(p) for p in paths}
         self.entries = {e.id: e for t in self.topics.values() for e in t.entries}
-        self._index = {
-            eid: (set(tokenize(e.title)), set(tokenize(e.text())), e.text().lower())
-            for eid, e in self.entries.items()
-        }
+        # BM25 index: per-entry term counts (title words weighted up), lengths and document frequencies.
+        self._tf: dict[str, Counter[str]] = {}
+        for eid, e in self.entries.items():
+            tf = Counter(tokenize(e.text()))
+            for term in tokenize(e.title):
+                tf[term] += TITLE_WEIGHT - 1
+            self._tf[eid] = tf
+        self._len = {eid: sum(tf.values()) for eid, tf in self._tf.items()}
+        self._avg_len = sum(self._len.values()) / max(len(self._len), 1)
+        self._df: Counter[str] = Counter(term for tf in self._tf.values() for term in tf)
 
     def search(
         self, query: str, topic: str | None = None, section: str | None = None, limit: int = 10
     ) -> list[Entry]:
-        terms = tokenize(query)
+        """BM25-ranked entries matching any of the query's terms; more matched terms rank higher."""
+        terms = list(dict.fromkeys(tokenize(query)))
         if not terms:
             return []
-        phrase = query.lower().strip()
+        n = len(self._tf)
+        idf = {t: math.log(1 + (n - self._df[t] + 0.5) / (self._df[t] + 0.5)) for t in terms}
         section = section.lower() if section else None
         scored = []
-        for eid, (title_words, all_words, text) in self._index.items():
+        for eid, tf in self._tf.items():
             entry = self.entries[eid]
             if topic and entry.topic != topic:
                 continue
             if section and section not in entry.section.lower():
                 continue
-            score = 0
-            for term in terms:
-                if term in title_words:
-                    score += 3
-                elif term in all_words:
-                    score += 1
-                elif term in text:  # prefix / substring, e.g. "poison" in "poisoning"
-                    score += 0.5
-                else:
-                    break
-            else:
-                if len(terms) > 1 and phrase in text:
-                    score += 2
-                scored.append((score, eid))
+            matched = [t for t in terms if tf[t]]
+            if not matched:
+                continue
+            norm = _BM25_K1 * (1 - _BM25_B + _BM25_B * self._len[eid] / self._avg_len)
+            score = sum(idf[t] * tf[t] * (_BM25_K1 + 1) / (tf[t] + norm) for t in matched)
+            # Prefer entries covering more of the query over ones that repeat a single word.
+            score *= (len(matched) / len(terms)) ** 2
+            scored.append((score, eid))
         scored.sort(key=lambda s: (-s[0], self.entries[s[1]].line, s[1]))
-        return [self.entries[eid] for _, eid in scored[:limit]]
+        results, seen = [], set()
+        for _, eid in scored:
+            entry = self.entries[eid]
+            key = normalize_url(entry.url) if entry.url else eid
+            if key in seen:
+                continue  # pages list some projects in several sections; keep the best-ranked one
+            seen.add(key)
+            results.append(entry)
+            if len(results) == limit:
+                break
+        return results
 
     def section_text(self, slug: str, heading: str) -> str:
         """The Markdown under `heading` on a topic page, up to the next heading of the same or higher level."""

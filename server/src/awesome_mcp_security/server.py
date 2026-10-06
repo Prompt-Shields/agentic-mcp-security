@@ -82,14 +82,21 @@ def build_server(catalog: Catalog) -> MCPServer:
 
     @mcp.tool(annotations=_READ_ONLY)
     def search(
-        query: Annotated[str, Field(description="Keywords, e.g. 'tool poisoning' or 'OAuth gateway'.")],
+        query: Annotated[
+            str, Field(description="Words or a question, e.g. 'tool poisoning scanners' or 'how to secure OAuth tokens'.")
+        ],
         topic: Annotated[str | None, Field(description="Restrict to one topic slug from list_topics.")] = None,
         section: Annotated[str | None, Field(description="Case-insensitive substring of the section name.")] = None,
         limit: Annotated[int, Field(description=f"Maximum results (1-{MAX_LIMIT}).")] = 10,
     ) -> list[dict[str, Any]]:
-        """Keyword search across every entry's title, section and summary columns.
+        """Find curated MCP-security resources (articles, papers, talks, tools, servers, labs) on a subject.
 
-        All keywords must match; title matches rank highest.
+        Ranked by relevance (BM25): entries matching more of the query rank
+        higher, and title matches count most. Filler words are ignored and simple
+        word forms match ("scanners" finds "scanner"). Use this before a general
+        web search when the question is about MCP or agent security, since these
+        entries are vetted and summarized. For a specific repo or link use
+        lookup_project; for a CVE id use find_cve.
         """
         check_topic(topic)
         return [e.to_dict() for e in catalog.search(query, topic=topic, section=section, limit=_limit(limit))]

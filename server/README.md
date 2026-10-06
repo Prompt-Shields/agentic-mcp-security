@@ -9,7 +9,7 @@ At startup it parses the `mcp_*.md` topic pages in the repository root into stru
 | Tool | What it does |
 | --- | --- |
 | `list_topics` | Topic pages with their sections, entry counts and resource URIs. |
-| `search` | Keyword search across titles, sections and summaries. All keywords must match, and title hits rank first. Optional `topic` and `section` filters. |
+| `search` | Relevance-ranked (BM25) search across titles, sections and summaries. Takes keywords or a plain question: filler words are ignored, simple word forms match, entries covering more of the query rank first, and a project listed in several sections appears once. Optional `topic` and `section` filters. |
 | `list_entries` | Pages through one topic (`limit` / `offset`), optionally filtered to a section. |
 | `get_entry` | One entry by the id that `search` or `list_entries` returned, for example `security_tools:3`. |
 | `lookup_project` | What the list says about a specific repo or link: entries about it, and entries that link to it. Use it to check a server before installing it. |
