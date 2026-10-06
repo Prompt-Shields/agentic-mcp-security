@@ -120,6 +120,33 @@ def build_server(catalog: Catalog) -> MCPServer:
         return entry.to_dict()
 
     @mcp.tool(annotations=_READ_ONLY)
+    def lookup_project(
+        project: Annotated[
+            str,
+            Field(description="A GitHub repo ('owner/repo' or any URL inside it) or another URL or domain."),
+        ],
+        limit: Annotated[int, Field(description=f"Maximum entries per group (1-{MAX_LIMIT}).")] = 10,
+    ) -> dict[str, Any]:
+        """Check what the list says about a specific project before installing or trusting it.
+
+        Use this when you have a concrete MCP server, tool or article in hand (a
+        repo or link), rather than a topic to search for. `about` holds entries
+        whose main link is the project; `mentioned_in` holds entries that only
+        link to it. An empty result means the list does not cover it, not that it
+        is safe.
+        """
+        project = project.strip()
+        if not project:
+            raise ToolError("project must not be empty")
+        about, mentions = catalog.lookup(project)
+        n = _limit(limit)
+        return {
+            "project": project,
+            "about": [e.to_dict() for e in about[:n]],
+            "mentioned_in": [e.to_dict() for e in mentions[:n]],
+        }
+
+    @mcp.tool(annotations=_READ_ONLY)
     def find_cve(cve_id: Annotated[str, Field(description="A CVE id, e.g. 'CVE-2025-6514'.")]) -> dict[str, Any]:
         """Find entries (write-ups, advisories, videos) that cite a CVE id.
 

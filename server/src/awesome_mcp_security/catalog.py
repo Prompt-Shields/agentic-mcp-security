@@ -25,6 +25,10 @@ _BULLET = re.compile(r"^\s*[-*+]\s+(.*)$")
 _TABLE_SEPARATOR = re.compile(r"^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$")
 _HTML_CELL = re.compile(r"<t[hd][^>]*>(.*?)</t[hd]>", re.IGNORECASE | re.DOTALL)
 _HTML_LINK = re.compile(r'<a\s[^>]*href="([^"]+)"[^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL)
+_GITHUB_REPO = re.compile(r"^(?:https?://)?(?:www\.)?github\.com/([\w.-]+)/([\w.-]+)", re.IGNORECASE)
+_BARE_REPO = re.compile(r"^([\w.-]+)/([\w.-]+)$")
+# github.com/<first segment> values that are site pages, not repository owners.
+_GITHUB_NON_OWNERS = {"orgs", "apps", "topics", "search", "features", "marketplace", "sponsors", "settings", "advisories"}
 _CVE = re.compile(r"CVE-\d{4}-\d{4,}", re.IGNORECASE)
 _WORD = re.compile(r"[a-z0-9]+(?:[-.][a-z0-9]+)*")
 
@@ -38,6 +42,7 @@ class Entry:
     url: str | None
     fields: dict[str, str]
     github_repo: str | None = None
+    links: list[str] = field(default_factory=list)
     cves: list[str] = field(default_factory=list)
     line: int = 0
 
@@ -53,6 +58,7 @@ class Entry:
             "url": self.url,
             "fields": self.fields,
             "github_repo": self.github_repo,
+            "links": self.links,
             "cves": self.cves,
             "source": f"{self.topic}:{self.line}",
         }
@@ -65,6 +71,22 @@ class Topic:
     path: Path
     sections: list[str]
     entries: list[Entry]
+
+
+def github_repo(url: str) -> str | None:
+    """`owner/repo` (lower-cased) for a GitHub repository URL or bare `owner/repo`, else None."""
+    url = url.strip()
+    m = _GITHUB_REPO.match(url) or (None if "://" in url or "." in url.split("/")[0] else _BARE_REPO.match(url))
+    if not m or m.group(1).lower() in _GITHUB_NON_OWNERS:
+        return None
+    return f"{m.group(1)}/{m.group(2).removesuffix('.git')}".lower()
+
+
+def normalize_url(url: str) -> str:
+    """Scheme-, www-, query- and trailing-slash-insensitive form of a URL, for comparison."""
+    url = re.sub(r"^[a-z]+://", "", url.strip().lower())
+    url = re.sub(r"^www\.", "", url)
+    return re.split(r"[?#]", url, maxsplit=1)[0].rstrip("/")
 
 
 def slug_for(path: Path) -> str:
@@ -99,6 +121,15 @@ def _html_to_markdown(cell: str) -> str:
     return html.unescape(re.sub(r"<[^>]+>", "", cell)).strip()
 
 
+def _all_links(text: str, refs: dict[str, str]) -> list[str]:
+    links = []
+    for m in _LINK.finditer(text):
+        url = m.group(2) or refs.get((m.group(3) or "").lower())
+        if url and url not in links:
+            links.append(url)
+    return links
+
+
 def _split_row(line: str) -> list[str]:
     line = line.strip()
     if line.startswith("|"):
@@ -130,7 +161,9 @@ def parse_topic(path: Path) -> Topic:
     def add(row_title: str, url: str | None, fields: dict[str, str], raw: str, lineno: int) -> None:
         if not row_title:
             return
-        repo = _BADGE_REPO.search(raw)
+        badge = _BADGE_REPO.search(raw)
+        repo = badge.group(1) if badge else (github_repo(url) if url else None)
+        links = _all_links(raw, refs)
         cves = sorted({c.upper() for c in _CVE.findall(raw)})
         entries.append(
             Entry(
@@ -140,7 +173,8 @@ def parse_topic(path: Path) -> Topic:
                 title=row_title,
                 url=url,
                 fields=fields,
-                github_repo=repo.group(1) if repo else None,
+                github_repo=repo,
+                links=links,
                 cves=cves,
                 line=lineno,
             )
@@ -258,6 +292,28 @@ class Catalog:
                 scored.append((score, eid))
         scored.sort(key=lambda s: (-s[0], self.entries[s[1]].line, s[1]))
         return [self.entries[eid] for _, eid in scored[:limit]]
+
+    def lookup(self, project: str) -> tuple[list[Entry], list[Entry]]:
+        """Entries about a project (its main link), and entries that only link to it.
+
+        `project` is a GitHub repo (`owner/repo` or any URL inside it) or any other URL.
+        """
+        repo = github_repo(project)
+        target = normalize_url(project)
+
+        def matches(url: str) -> bool:
+            if repo:
+                return github_repo(url) == repo
+            u = normalize_url(url)
+            return u == target or u.startswith(target + "/")
+
+        about, mentions = [], []
+        for e in self.entries.values():
+            if (e.url and matches(e.url)) or (repo and (e.github_repo or "").lower() == repo):
+                about.append(e)
+            elif any(matches(link) for link in e.links):
+                mentions.append(e)
+        return about, mentions
 
     def by_cve(self, cve_id: str) -> list[Entry]:
         cve_id = cve_id.upper()

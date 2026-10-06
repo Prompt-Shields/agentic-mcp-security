@@ -12,6 +12,7 @@ At startup it parses the `mcp_*.md` topic pages in the repository root into stru
 | `search` | Keyword search across titles, sections and summaries. All keywords must match, and title hits rank first. Optional `topic` and `section` filters. |
 | `list_entries` | Pages through one topic (`limit` / `offset`), optionally filtered to a section. |
 | `get_entry` | One entry by the id that `search` or `list_entries` returned, for example `security_tools:3`. |
+| `lookup_project` | What the list says about a specific repo or link: entries about it, and entries that link to it. Use it to check a server before installing it. |
 | `find_cve` | Entries citing a CVE id, plus the CVE catalogs the list links to. |
 
 Every tool is annotated `readOnlyHint` and `openWorldHint: false`.

@@ -4,7 +4,7 @@ import pytest
 
 from mcp import Client
 
-from awesome_mcp_security.catalog import Catalog, clean, parse_topic
+from awesome_mcp_security.catalog import Catalog, clean, github_repo, normalize_url, parse_topic
 from awesome_mcp_security.server import build_server, default_content_dir
 
 FIXTURE = """\
@@ -26,6 +26,8 @@ FIXTURE = """\
 - [Bullet link](https://example.com/bullet) - A bulleted entry.
 
 [Bare link][ref_scanner]
+
+- [Write-up](https://blog.example.org/post) - Covers [the scanner](https://github.com/acme/scanner/tree/main/docs).
 
 ## Podcasts
 
@@ -60,7 +62,9 @@ def test_parse_fixture(sample_dir: Path):
     assert topic.slug == "sample"
     assert topic.title == "Sample Topic"
     titles = {e.title: e for e in topic.entries}
-    assert set(titles) == {"Scanner", "Inline", "Bullet link", "Bare link", "Episode & One : Show", "Under second H1"}
+    assert set(titles) == {
+        "Scanner", "Inline", "Bullet link", "Bare link", "Write-up", "Episode & One : Show", "Under second H1"
+    }
 
     scanner = titles["Scanner"]
     assert scanner.url == "https://example.com/scanner"  # reference-style link resolved
@@ -76,6 +80,25 @@ def test_parse_fixture(sample_dir: Path):
     assert episode.fields == {"Date": "2026-01-01", "Summary": "About gateways."}
     assert titles["Under second H1"].section == "Second H1"
     assert "Contents" not in " ".join(topic.sections)
+
+
+def test_github_repo_and_normalize_url():
+    assert github_repo("https://github.com/Acme/Scanner.git") == "acme/scanner"
+    assert github_repo("github.com/acme/scanner/tree/main") == "acme/scanner"
+    assert github_repo("acme/scanner") == "acme/scanner"
+    assert github_repo("https://github.com/orgs/acme/people") is None
+    assert github_repo("example.com/path") is None
+    assert normalize_url("HTTPS://www.Example.com/a/?q=1#x") == "example.com/a"
+
+
+def test_lookup(sample_dir: Path):
+    catalog = Catalog(sample_dir)
+    about, mentions = catalog.lookup("https://github.com/ACME/scanner/blob/main/README.md")
+    assert [e.title for e in about] == ["Scanner"]  # matched through its badge repo
+    assert [e.title for e in mentions] == ["Write-up"]
+    about, _ = catalog.lookup("example.com/inline")
+    assert [e.title for e in about] == ["Inline"]
+    assert catalog.lookup("example.com/inl") == ([], [])  # no partial path-segment matches
 
 
 def test_clean():
@@ -113,7 +136,7 @@ async def client(sample_dir: Path):
 @pytest.mark.anyio
 async def test_tools_listed_read_only(client: Client):
     tools = {t.name: t for t in (await client.list_tools()).tools}
-    assert set(tools) == {"list_topics", "search", "list_entries", "get_entry", "find_cve"}
+    assert set(tools) == {"list_topics", "search", "list_entries", "get_entry", "find_cve", "lookup_project"}
     assert all(t.annotations.read_only_hint for t in tools.values())
 
 
@@ -134,8 +157,8 @@ async def test_search_and_get_entry(client: Client):
 @pytest.mark.anyio
 async def test_list_entries_paging(client: Client):
     first = (await client.call_tool("list_entries", {"topic": "sample", "limit": 2})).structured_content
-    assert first["total"] == 6 and len(first["entries"]) == 2 and first["next_offset"] == 2
-    last = (await client.call_tool("list_entries", {"topic": "sample", "offset": 4})).structured_content
+    assert first["total"] == 7 and len(first["entries"]) == 2 and first["next_offset"] == 2
+    last = (await client.call_tool("list_entries", {"topic": "sample", "offset": 5})).structured_content
     assert last["next_offset"] is None
     bad = await client.call_tool("list_entries", {"topic": "../etc"})
     assert bad.is_error
@@ -146,6 +169,14 @@ async def test_find_cve(client: Client):
     found = (await client.call_tool("find_cve", {"cve_id": "cve-2025-6514"})).structured_content
     assert [e["title"] for e in found["entries"]] == ["Inline"]
     assert (await client.call_tool("find_cve", {"cve_id": "not-a-cve"})).is_error
+
+
+@pytest.mark.anyio
+async def test_lookup_project(client: Client):
+    found = (await client.call_tool("lookup_project", {"project": "acme/scanner"})).structured_content
+    assert [e["title"] for e in found["about"]] == ["Scanner"]
+    assert [e["title"] for e in found["mentioned_in"]] == ["Write-up"]
+    assert (await client.call_tool("lookup_project", {"project": "  "})).is_error
 
 
 @pytest.mark.anyio
