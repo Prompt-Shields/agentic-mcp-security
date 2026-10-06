@@ -19,6 +19,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from .catalog import Catalog
+from .prompts import register_prompts
 
 CONTENT_DIR_ENV = "AWESOME_MCP_SECURITY_CONTENT_DIR"
 URI_SCHEME = "awesome-mcp-security"
@@ -175,6 +176,7 @@ def build_server(catalog: Catalog) -> MCPServer:
             mime_type="text/markdown",
         )(page_reader(t.path))
 
+    register_prompts(mcp, catalog)
     return mcp
 
 

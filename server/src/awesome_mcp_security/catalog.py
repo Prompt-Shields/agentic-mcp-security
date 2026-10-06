@@ -293,6 +293,25 @@ class Catalog:
         scored.sort(key=lambda s: (-s[0], self.entries[s[1]].line, s[1]))
         return [self.entries[eid] for _, eid in scored[:limit]]
 
+    def section_text(self, slug: str, heading: str) -> str:
+        """The Markdown under `heading` on a topic page, up to the next heading of the same or higher level."""
+        lines = self.topics[slug].path.read_text(encoding="utf-8").splitlines()
+        out: list[str] = []
+        level = None
+        for line in lines:
+            h = _HEADING.match(line)
+            if level is None:
+                if h and clean(h.group(2)).lower() == heading.lower():
+                    level = len(h.group(1))
+                continue
+            if h and len(h.group(1)) <= level:
+                break
+            if not _REF_DEF.match(line):
+                out.append(line)
+        if level is None:
+            raise KeyError(f"no heading {heading!r} in {slug}")
+        return "\n".join(out).strip().removesuffix("---").strip()
+
     def lookup(self, project: str) -> tuple[list[Entry], list[Entry]]:
         """Entries about a project (its main link), and entries that only link to it.
 

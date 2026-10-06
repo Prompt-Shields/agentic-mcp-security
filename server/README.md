@@ -17,6 +17,15 @@ At startup it parses the `mcp_*.md` topic pages in the repository root into stru
 
 Every tool is annotated `readOnlyHint` and `openWorldHint: false`.
 
+## Prompts
+
+| Prompt | Argument | What it sets up |
+| --- | --- | --- |
+| `vet_mcp_server` | `server`: a GitHub repo or URL | A pre-install review covering what the list says about the server, each key risk area, which listed scanners fit, and a go/no-go checklist. |
+| `threat_model` | `deployment`: a plain description | A threat model of that deployment against the list's risk areas and security principles. |
+
+Both prompts embed the relevant catalog text inside `<catalog_data>` tags, trimmed to keep the prompt short. They tell the model to treat that text as data. Angle brackets in it are replaced so that text can't close the tag early.
+
 ## Resources
 
 `awesome-mcp-security://topics/<slug>` holds the raw Markdown of each topic page. For example, `awesome-mcp-security://topics/security_tools` is `mcp_security_tools.md`.
