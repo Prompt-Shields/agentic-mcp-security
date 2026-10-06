@@ -59,7 +59,7 @@ Or add it to a client's JSON config:
 }
 ```
 
-From a checkout, so that edits to the pages take effect on the next restart:
+From a checkout, so that the server follows your edits to the pages:
 
 ```sh
 cd server
@@ -68,6 +68,8 @@ uv run awesome-mcp-security --transport streamable-http --port 8000
 ```
 
 An installed package reads its bundled copy of the pages, and a checkout reads the pages in the repository root. To point either one somewhere else, use `--content-dir DIR` or set `AWESOME_MCP_SECURITY_CONTENT_DIR`.
+
+While it runs, the server checks the pages for changes at most every two seconds, on the next tool or prompt call. Edited, added and removed pages show up in the tools and prompts without a restart. If a reload fails, for example on a half-saved file, the server keeps the previous version and tries again later. The list of resources is fixed at startup, so a newly added page needs a restart before it appears as a resource.
 
 ## Security notes
 

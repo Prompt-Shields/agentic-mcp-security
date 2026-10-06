@@ -4,7 +4,7 @@ import pytest
 
 from mcp import Client
 
-from awesome_mcp_security.catalog import Catalog, clean, github_repo, normalize_url, parse_topic, stem, tokenize
+from awesome_mcp_security.catalog import Catalog, LiveCatalog, clean, github_repo, normalize_url, parse_topic, stem, tokenize
 from awesome_mcp_security.server import build_server, default_content_dir
 
 FIXTURE = """\
@@ -270,3 +270,50 @@ def test_defang_blocks_tag_breakout():
 async def test_prompts_without_overview(client: Client):
     text = (await client.get_prompt("threat_model", {"deployment": "x"})).messages[0].content.text
     assert "(not available in this copy of the list)" in text
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+
+def test_live_catalog_reloads_after_interval(sample_dir: Path):
+    clock = FakeClock()
+    live = LiveCatalog(sample_dir, interval=2.0, clock=clock)
+    first = live.get()
+    page = sample_dir / "mcp_sample.md"
+    page.write_text(page.read_text() + "\n- [Fresh entry](https://example.com/fresh) - added later\n")
+
+    clock.now = 1.0
+    assert live.get() is first  # within the interval: no filesystem check
+
+    clock.now = 3.0
+    assert live.get() is not first
+    assert live.get().search("fresh")[0].title == "Fresh entry"
+
+    (sample_dir / "mcp_extra.md").write_text("# Extra\n\n- [New page](https://example.com/new)\n")
+    clock.now = 6.0
+    assert "extra" in live.get().topics
+
+
+def test_live_catalog_keeps_previous_on_failure(sample_dir: Path):
+    clock = FakeClock()
+    live = LiveCatalog(sample_dir, interval=0, clock=clock)
+    before = live.get()
+    (sample_dir / "mcp_sample.md").unlink()  # no pages left: Catalog() would raise
+    clock.now = 1.0
+    assert live.get() is before
+
+
+@pytest.mark.anyio
+async def test_server_follows_page_edits(sample_dir: Path):
+    clock = FakeClock()
+    async with Client(build_server(LiveCatalog(sample_dir, interval=1, clock=clock)), raise_exceptions=True) as c:
+        page = sample_dir / "mcp_sample.md"
+        page.write_text(page.read_text() + "\n- [Hot reload](https://example.com/hot) - picked up\n")
+        clock.now = 5
+        hits = (await c.call_tool("search", {"query": "hot reload"})).structured_content["result"]
+        assert hits[0]["title"] == "Hot reload"

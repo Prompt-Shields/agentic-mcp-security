@@ -6,7 +6,7 @@ written by third parties, so the prompts tell the model to treat it as data.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Callable
 
 from pydantic import Field
 
@@ -58,12 +58,13 @@ def overview_text(catalog: Catalog, heading: str) -> str:
         return "(not available in this copy of the list)"
 
 
-def register_prompts(mcp: MCPServer, catalog: Catalog) -> None:
+def register_prompts(mcp: MCPServer, current: Callable[[], Catalog]) -> None:
     @mcp.prompt(title="Vet an MCP server before installing it")
     def vet_mcp_server(
         server: Annotated[str, Field(description="The server's GitHub repo (owner/repo) or URL.")],
     ) -> str:
         """Review an MCP server against the list's risk areas, what the list says about it, and the scanners it recommends."""
+        catalog = current()
         about, mentions = catalog.lookup(server)
         return f"""\
 Help me decide whether to install this MCP server: {server}
@@ -103,6 +104,7 @@ Do not call the server safe because the list has no warning about it."""
         ],
     ) -> str:
         """Threat-model a described MCP deployment using the list's risk areas and security principles."""
+        catalog = current()
         return f"""\
 Threat-model this MCP deployment:
 

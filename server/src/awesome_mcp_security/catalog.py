@@ -9,8 +9,10 @@ bare link lines. Links are either inline (`[text](url)`) or reference-style
 from __future__ import annotations
 
 import html
+import logging
 import math
 import re
+import time
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -375,3 +377,45 @@ class Catalog:
     def by_cve(self, cve_id: str) -> list[Entry]:
         cve_id = cve_id.upper()
         return [e for e in self.entries.values() if cve_id in e.cves]
+
+
+logger = logging.getLogger(__name__)
+
+
+class LiveCatalog:
+    """A Catalog that reloads itself when topic pages are edited, added or removed.
+
+    Pages are checked at most every `interval` seconds, on access. If a reload
+    fails (say, a page is caught half-written), the previous catalog is kept
+    and the reload is retried on a later access.
+    """
+
+    def __init__(self, content_dir: Path, interval: float = 2.0, clock=time.monotonic):
+        self.content_dir = content_dir
+        self.interval = interval
+        self._clock = clock
+        self._catalog = Catalog(content_dir)
+        self._stamp = self._fingerprint()
+        self._checked = clock()
+
+    def _fingerprint(self) -> tuple:
+        stamp = []
+        for p in sorted(self.content_dir.glob(TOPIC_GLOB)):
+            st = p.stat()
+            stamp.append((p.name, st.st_mtime_ns, st.st_size))
+        return tuple(stamp)
+
+    def get(self) -> Catalog:
+        now = self._clock()
+        if now - self._checked < self.interval:
+            return self._catalog
+        self._checked = now
+        try:
+            stamp = self._fingerprint()
+            if stamp != self._stamp:
+                self._catalog = Catalog(self.content_dir)
+                self._stamp = stamp
+                logger.info("reloaded %d topic pages from %s", len(self._catalog.topics), self.content_dir)
+        except (OSError, UnicodeDecodeError) as exc:
+            logger.warning("keeping the previous catalog; reload failed: %s", exc)
+        return self._catalog

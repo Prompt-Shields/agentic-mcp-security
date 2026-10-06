@@ -18,7 +18,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from .catalog import Catalog
+from .catalog import Catalog, LiveCatalog
 from .prompts import register_prompts
 
 CONTENT_DIR_ENV = "AWESOME_MCP_SECURITY_CONTENT_DIR"
@@ -53,18 +53,21 @@ def _limit(limit: int) -> int:
     return max(1, min(limit, MAX_LIMIT))
 
 
-def build_server(catalog: Catalog) -> MCPServer:
+def build_server(source: Catalog | LiveCatalog) -> MCPServer:
+    """Build the server over a fixed Catalog, or a LiveCatalog that follows edits to the pages."""
+    catalog = source.get if isinstance(source, LiveCatalog) else lambda: source
+
     mcp = MCPServer(
         name="awesome-mcp-security",
         title="Awesome Agentic MCP Security",
         instructions=INSTRUCTIONS,
         version="0.1.0",
     )
-    topic_slugs = sorted(catalog.topics)
 
-    def check_topic(topic: str | None) -> None:
-        if topic is not None and topic not in catalog.topics:
-            raise ToolError(f"unknown topic {topic!r}; expected one of: {', '.join(topic_slugs)}")
+    # Each tool takes one snapshot via catalog(), so a reload mid-call can't mix two versions.
+    def check_topic(cat: Catalog, topic: str | None) -> None:
+        if topic is not None and topic not in cat.topics:
+            raise ToolError(f"unknown topic {topic!r}; expected one of: {', '.join(sorted(cat.topics))}")
 
     @mcp.tool(annotations=_READ_ONLY)
     def list_topics() -> list[dict[str, Any]]:
@@ -77,7 +80,7 @@ def build_server(catalog: Catalog) -> MCPServer:
                 "sections": t.sections,
                 "resource": f"{URI_SCHEME}://topics/{t.slug}",
             }
-            for t in catalog.topics.values()
+            for t in catalog().topics.values()
         ]
 
     @mcp.tool(annotations=_READ_ONLY)
@@ -98,8 +101,9 @@ def build_server(catalog: Catalog) -> MCPServer:
         entries are vetted and summarized. For a specific repo or link use
         lookup_project; for a CVE id use find_cve.
         """
-        check_topic(topic)
-        return [e.to_dict() for e in catalog.search(query, topic=topic, section=section, limit=_limit(limit))]
+        cat = catalog()
+        check_topic(cat, topic)
+        return [e.to_dict() for e in cat.search(query, topic=topic, section=section, limit=_limit(limit))]
 
     @mcp.tool(annotations=_READ_ONLY)
     def list_entries(
@@ -109,8 +113,9 @@ def build_server(catalog: Catalog) -> MCPServer:
         offset: Annotated[int, Field(description="Number of entries to skip.", ge=0)] = 0,
     ) -> dict[str, Any]:
         """Page through a topic's entries in the order the page lists them."""
-        check_topic(topic)
-        entries = catalog.topics[topic].entries
+        cat = catalog()
+        check_topic(cat, topic)
+        entries = cat.topics[topic].entries
         if section:
             entries = [e for e in entries if section.lower() in e.section.lower()]
         page = entries[offset : offset + _limit(limit)]
@@ -124,7 +129,7 @@ def build_server(catalog: Catalog) -> MCPServer:
     @mcp.tool(annotations=_READ_ONLY)
     def get_entry(entry_id: Annotated[str, Field(description="An entry id such as 'security_tools:3'.")]) -> dict[str, Any]:
         """Fetch one entry by the id that search or list_entries returned."""
-        entry = catalog.entries.get(entry_id)
+        entry = catalog().entries.get(entry_id)
         if entry is None:
             raise ToolError(f"no entry with id {entry_id!r}")
         return entry.to_dict()
@@ -148,7 +153,7 @@ def build_server(catalog: Catalog) -> MCPServer:
         project = project.strip()
         if not project:
             raise ToolError("project must not be empty")
-        about, mentions = catalog.lookup(project)
+        about, mentions = catalog().lookup(project)
         n = _limit(limit)
         return {
             "project": project,
@@ -166,10 +171,11 @@ def build_server(catalog: Catalog) -> MCPServer:
         cve_id = cve_id.strip()
         if not _CVE_ID.match(cve_id):
             raise ToolError(f"{cve_id!r} is not a CVE id (expected CVE-YYYY-NNNN)")
-        catalogs = catalog.topics.get("cve")
+        cat = catalog()
+        catalogs = cat.topics.get("cve")
         return {
             "cve": cve_id.upper(),
-            "entries": [e.to_dict() for e in catalog.by_cve(cve_id)],
+            "entries": [e.to_dict() for e in cat.by_cve(cve_id)],
             "cve_catalogs": [e.to_dict() for e in catalogs.entries] if catalogs else [],
         }
 
@@ -177,7 +183,7 @@ def build_server(catalog: Catalog) -> MCPServer:
         return lambda: path.read_text(encoding="utf-8")
 
     # Only known pages are registered, so a resource URI can never name another file.
-    for t in catalog.topics.values():
+    for t in catalog().topics.values():
         mcp.resource(
             f"{URI_SCHEME}://topics/{t.slug}",
             name=t.slug,
@@ -200,7 +206,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--port", type=int, default=8000, help="streamable-http port.")
     args = parser.parse_args(argv)
 
-    server = build_server(Catalog(resolve_content_dir(args.content_dir)))
+    server = build_server(LiveCatalog(resolve_content_dir(args.content_dir)))
     if args.transport == "stdio":
         server.run("stdio")
     else:
