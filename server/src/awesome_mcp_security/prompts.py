@@ -12,7 +12,7 @@ from pydantic import Field
 
 from mcp.server.mcpserver import MCPServer
 
-from .catalog import Catalog, Entry
+from .catalog import Catalog, Entry, trim
 
 MAX_FIELD_CHARS = 300
 MAX_ENTRIES = 8
@@ -28,17 +28,13 @@ def defang(text: str) -> str:
     return text.replace("<", "‹").replace(">", "›")
 
 
-def trim(text: str, limit: int = MAX_FIELD_CHARS) -> str:
-    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
-
-
 def entry_line(e: Entry) -> str:
-    summary = " ".join(e.fields.values())
+    summary = e.summary()
     parts = [f"[{e.id}] {trim(e.title, 160)}"]
     if e.url:
         parts.append(e.url)
     if summary:
-        parts.append(trim(summary))
+        parts.append(trim(summary, MAX_FIELD_CHARS))
     return defang("- " + " | ".join(parts))
 
 

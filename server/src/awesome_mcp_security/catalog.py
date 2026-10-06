@@ -37,6 +37,14 @@ _CVE = re.compile(r"CVE-\d{4}-\d{4,}", re.IGNORECASE)
 _WORD = re.compile(r"[a-z0-9]+(?:[-.][a-z0-9]+)*")
 
 
+SUMMARY_CHARS = 300
+TITLE_CHARS = 160
+
+
+def trim(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
 @dataclass
 class Entry:
     id: str
@@ -53,7 +61,26 @@ class Entry:
     def text(self) -> str:
         return " ".join([self.title, self.section, *self.fields.values()])
 
+    def summary(self) -> str:
+        return " · ".join(self.fields.values())
+
+    def to_brief(self, max_chars: int = SUMMARY_CHARS) -> dict:
+        """The compact form for result lists: what is needed to choose an entry and cite it."""
+        brief = {
+            "id": self.id,
+            "title": trim(self.title, TITLE_CHARS),
+            "url": self.url,
+            "where": f"{self.topic} > {self.section}" if self.section else self.topic,
+            "summary": trim(self.summary(), max_chars),
+        }
+        if self.github_repo:
+            brief["github_repo"] = self.github_repo
+        if self.cves:
+            brief["cves"] = self.cves
+        return {k: v for k, v in brief.items() if v}
+
     def to_dict(self) -> dict:
+        """The full record, for get_entry."""
         return {
             "id": self.id,
             "topic": self.topic,
@@ -319,6 +346,8 @@ class Catalog:
             score = sum(idf[t] * tf[t] * (_BM25_K1 + 1) / (tf[t] + norm) for t in matched)
             # Prefer entries covering more of the query over ones that repeat a single word.
             score *= (len(matched) / len(terms)) ** 2
+            if not entry.url:
+                score *= 0.5  # link-less rows are cross-references to entries listed elsewhere
             scored.append((score, eid))
         scored.sort(key=lambda s: (-s[0], self.entries[s[1]].line, s[1]))
         results, seen = [], set()
@@ -327,6 +356,11 @@ class Catalog:
             key = normalize_url(entry.url) if entry.url else eid
             if key in seen:
                 continue  # pages list some projects in several sections; keep the best-ranked one
+            if not entry.url:
+                # A link-less "X (see ... above)" row adds nothing once X itself is in the results.
+                stem_title = re.split(r"\s*\(see\b", entry.title, maxsplit=1, flags=re.IGNORECASE)[0].lower()
+                if any(r.title.lower().startswith(stem_title) for r in results):
+                    continue
             seen.add(key)
             results.append(entry)
             if len(results) == limit:

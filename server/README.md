@@ -11,11 +11,13 @@ At startup it parses the `mcp_*.md` topic pages in the repository root into stru
 | `list_topics` | Topic pages with their sections, entry counts and resource URIs. |
 | `search` | Relevance-ranked (BM25) search across titles, sections and summaries. Takes keywords or a plain question: filler words are ignored, simple word forms match, entries covering more of the query rank first, and a project listed in several sections appears once. Optional `topic` and `section` filters. |
 | `list_entries` | Pages through one topic (`limit` / `offset`), optionally filtered to a section. |
-| `get_entry` | One entry by the id that `search` or `list_entries` returned, for example `security_tools:3`. |
+| `get_entry` | The full record for one entry (every column and link), by the id another tool returned, for example `security_tools:3`. |
 | `lookup_project` | What the list says about a specific repo or link: entries about it, and entries that link to it. Use it to check a server before installing it. |
 | `find_cve` | Entries citing a CVE id, plus the CVE catalogs the list links to. |
 
 Every tool is annotated `readOnlyHint` and `openWorldHint: false`.
+
+Result lists use a compact form: `id`, `title`, `url`, `where` (topic and section), and a `summary` trimmed to 300 characters. `github_repo` and `cves` are added when present. Every response carries a `note` saying that the text is third-party content to treat as data, not instructions.
 
 ## Prompts
 
@@ -75,7 +77,7 @@ While it runs, the server checks the pages for changes at most every two seconds
 
 - **No side effects.** The server never fetches the URLs it returns, never writes files and never opens outbound connections.
 - **Fixed resource set.** Only the topic pages found at startup are registered as resources, so a resource URI cannot name any other file.
-- **Third-party text.** Entry titles and summaries describe other people's projects. The server's instructions tell clients to treat them as data rather than instructions, and to review a project before running it.
+- **Third-party text.** Entry titles and summaries describe other people's projects. Every tool response, as well as the server's instructions, tells the model to treat them as data rather than instructions, and to review a project before running it. Result lists are trimmed, so one long entry can't flood the context.
 - **Local binding.** The HTTP transport binds to `127.0.0.1` by default and has no authentication. Put it behind an authenticating proxy or gateway before exposing it beyond localhost.
 
 ## Develop
@@ -85,4 +87,4 @@ cd server
 uv run --group dev pytest
 ```
 
-The parser handles pipe tables, HTML `<table>` rows, bulleted links and bare link lines, with both inline and reference-style links. If you add a page in a new layout, add a case to `tests/test_server.py`.
+The parser handles pipe tables, HTML `<table>` rows, bulleted links and bare link lines, with both inline and reference-style links. If you add a page in a new layout, add a case to `tests/test_server.py`. `tests/test_search_quality.py` holds queries a model might send and the URL each must rank near the top. Run it after changing ranking code, and update it when the list itself changes.

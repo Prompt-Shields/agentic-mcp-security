@@ -82,6 +82,15 @@ def test_parse_fixture(sample_dir: Path):
     assert "Contents" not in " ".join(topic.sections)
 
 
+def test_to_brief_trims_and_drops_empty():
+    from awesome_mcp_security.catalog import Entry
+
+    e = Entry(id="x:1", topic="x", section="", title="T" * 500, url=None, fields={"A": "a" * 1000, "B": "b"})
+    brief = e.to_brief()
+    assert set(brief) == {"id", "title", "where", "summary"}
+    assert len(brief["title"]) == 160 and len(brief["summary"]) == 300 and brief["summary"].endswith("…")
+
+
 def test_github_repo_and_normalize_url():
     assert github_repo("https://github.com/Acme/Scanner.git") == "acme/scanner"
     assert github_repo("github.com/acme/scanner/tree/main") == "acme/scanner"
@@ -161,11 +170,21 @@ async def test_tools_listed_read_only(client: Client):
 async def test_search_and_get_entry(client: Client):
     result = await client.call_tool("search", {"query": "tool poisoning"})
     assert not result.is_error
-    hits = result.structured_content["result"]
-    assert hits[0]["title"] == "Scanner"
+    body = result.structured_content
+    hits = body["results"]
+    assert hits[0] == {
+        "id": "sample:1",
+        "title": "Scanner",
+        "url": "https://example.com/scanner",
+        "where": "sample > Tables",
+        "summary": "Finds tool poisoning in configs",
+        "github_repo": "acme/scanner",
+    }
+    assert "not instructions" in body["note"]
 
     entry = await client.call_tool("get_entry", {"entry_id": hits[0]["id"]})
-    assert entry.structured_content["url"] == "https://example.com/scanner"
+    full = entry.structured_content
+    assert full["url"] == "https://example.com/scanner" and full["fields"] and "note" in full
 
     missing = await client.call_tool("get_entry", {"entry_id": "sample:999"})
     assert missing.is_error
@@ -315,5 +334,5 @@ async def test_server_follows_page_edits(sample_dir: Path):
         page = sample_dir / "mcp_sample.md"
         page.write_text(page.read_text() + "\n- [Hot reload](https://example.com/hot) - picked up\n")
         clock.now = 5
-        hits = (await c.call_tool("search", {"query": "hot reload"})).structured_content["result"]
+        hits = (await c.call_tool("search", {"query": "hot reload"})).structured_content["results"]
         assert hits[0]["title"] == "Hot reload"
