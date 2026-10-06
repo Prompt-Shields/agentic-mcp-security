@@ -213,6 +213,20 @@ async def test_lookup_project(client: Client):
     assert [e["title"] for e in found["about"]] == ["Scanner"]
     assert [e["title"] for e in found["mentioned_in"]] == ["Write-up"]
     assert (await client.call_tool("lookup_project", {"project": "  "})).is_error
+    assert found["matched_by"] == "link"
+
+    by_name = (await client.call_tool("lookup_project", {"project": "the Scanner tool"})).structured_content
+    assert by_name["matched_by"] == "name"
+    assert by_name["about"][0]["title"] == "Scanner" and by_name["mentioned_in"] == []
+
+
+def test_looks_like_link():
+    from awesome_mcp_security.catalog import looks_like_link
+
+    for link in ["acme/scanner", "https://x.org/a", "owasp.org", "github.com/a/b"]:
+        assert looks_like_link(link), link
+    for name in ["Burp Suite MCP", "semgrep", "PortSwigger Burp Suite MCP server", "v1.2"]:
+        assert not looks_like_link(name), name
 
 
 @pytest.mark.anyio

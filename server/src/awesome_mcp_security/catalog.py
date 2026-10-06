@@ -113,6 +113,12 @@ def github_repo(url: str) -> str | None:
     return f"{m.group(1)}/{m.group(2).removesuffix('.git')}".lower()
 
 
+def looks_like_link(text: str) -> bool:
+    """True for a URL, domain or `owner/repo`; False for a plain name like "Burp Suite MCP"."""
+    text = text.strip()
+    return " " not in text and ("/" in text or bool(re.search(r"\.[a-z]{2,}(/|$)", text, re.IGNORECASE)))
+
+
 def normalize_url(url: str) -> str:
     """Scheme-, www-, query- and trailing-slash-insensitive form of a URL, for comparison."""
     url = re.sub(r"^[a-z]+://", "", url.strip().lower())

@@ -2,7 +2,7 @@
 
 A read-only [Model Context Protocol](https://modelcontextprotocol.io) server that makes this list searchable from any MCP client (Claude Code, Claude Desktop, Cursor, and others).
 
-At startup it parses the `mcp_*.md` topic pages in the repository root into structured entries. Each entry has a title, URL, section, summary columns, GitHub repo and cited CVE ids. It then serves those entries as tools and serves the pages themselves as resources. The pages stay the single source of truth: edit the Markdown and restart the server.
+At startup it parses the `mcp_*.md` topic pages in the repository root into structured entries. Each entry has a title, URL, section, summary columns, GitHub repo and cited CVE ids. It then serves those entries as tools and serves the pages themselves as resources. The pages stay the single source of truth: edit the Markdown, and a running server picks up the change on its next call.
 
 ## Tools
 
@@ -12,7 +12,7 @@ At startup it parses the `mcp_*.md` topic pages in the repository root into stru
 | `search` | Relevance-ranked (BM25) search across titles, sections and summaries. Takes keywords or a plain question: filler words are ignored, simple word forms match, entries covering more of the query rank first, and a project listed in several sections appears once. Optional `topic` and `section` filters. |
 | `list_entries` | Pages through one topic (`limit` / `offset`), optionally filtered to a section. |
 | `get_entry` | The full record for one entry (every column and link), by the id another tool returned, for example `security_tools:3`. |
-| `lookup_project` | What the list says about a specific repo or link: entries about it, and entries that link to it. Use it to check a server before installing it. |
+| `lookup_project` | What the list says about one named server or tool, before you install it. Give a repo or URL for exact matches (entries about it, and entries that link to it), or a plain name such as `Burp Suite MCP` for ranked candidates. |
 | `find_cve` | Entries citing a CVE id, plus the CVE catalogs the list links to. |
 
 Every tool is annotated `readOnlyHint` and `openWorldHint: false`.
@@ -88,3 +88,15 @@ uv run --group dev pytest
 ```
 
 The parser handles pipe tables, HTML `<table>` rows, bulleted links and bare link lines, with both inline and reference-style links. If you add a page in a new layout, add a case to `tests/test_server.py`. `tests/test_search_quality.py` holds queries a model might send and the URL each must rank near the top. Run it after changing ranking code, and update it when the list itself changes.
+
+### Does a model pick the right tool?
+
+`evals/tool_selection.py` runs everyday tasks through `claude -p`, with only this server connected, web search and file tools switched off, and no tool named in the task. It checks which tool the model reaches for first. One case is off-topic and must not call the server at all. It makes real model calls, so it isn't part of `pytest`. You need the Claude Code CLI, signed in.
+
+```sh
+cd server
+uv run python evals/tool_selection.py              # all cases
+uv run python evals/tool_selection.py --only 1 2 --show-answers
+```
+
+Run it after changing tool descriptions or the server instructions. Before those were rewritten, the model answered "what should I know before installing the Burp Suite MCP server?" from memory and never called the server. It now passes all 6 cases.
