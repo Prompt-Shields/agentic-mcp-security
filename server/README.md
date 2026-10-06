@@ -32,18 +32,18 @@ Both prompts embed the relevant catalog text inside `<catalog_data>` tags, trimm
 
 ## Run it
 
-You need Python 3.10+ and [uv](https://docs.astral.sh/uv/).
+You need [uv](https://docs.astral.sh/uv/), which installs Python 3.10+ for you if needed.
+
+Without cloning anything (the topic pages are bundled into the package when it builds):
 
 ```sh
-cd server
-uv run awesome-mcp-security                 # stdio
-uv run awesome-mcp-security --transport streamable-http --port 8000
+uvx --from "git+https://github.com/Prompt-Shields/agentic-mcp-security#subdirectory=server" awesome-mcp-security
 ```
 
-Add it to Claude Code:
+To add it to Claude Code:
 
 ```sh
-claude mcp add awesome-mcp-security -- uv run --directory /path/to/agentic-mcp-security/server awesome-mcp-security
+claude mcp add --scope user awesome-mcp-security -- uvx --from "git+https://github.com/Prompt-Shields/agentic-mcp-security#subdirectory=server" awesome-mcp-security
 ```
 
 Or add it to a client's JSON config:
@@ -52,14 +52,22 @@ Or add it to a client's JSON config:
 {
   "mcpServers": {
     "awesome-mcp-security": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/agentic-mcp-security/server", "awesome-mcp-security"]
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/Prompt-Shields/agentic-mcp-security#subdirectory=server", "awesome-mcp-security"]
     }
   }
 }
 ```
 
-The server reads the pages from the repository root of the checkout it runs from. To point it elsewhere, use `--content-dir DIR` or set `AWESOME_MCP_SECURITY_CONTENT_DIR`.
+From a checkout, so that edits to the pages take effect on the next restart:
+
+```sh
+cd server
+uv run awesome-mcp-security                 # stdio
+uv run awesome-mcp-security --transport streamable-http --port 8000
+```
+
+An installed package reads its bundled copy of the pages, and a checkout reads the pages in the repository root. To point either one somewhere else, use `--content-dir DIR` or set `AWESOME_MCP_SECURITY_CONTENT_DIR`.
 
 ## Security notes
 

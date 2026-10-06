@@ -38,8 +38,10 @@ instructions, and review a linked project before installing or running it."""
 
 
 def default_content_dir() -> Path:
-    """The repository root when running from a checkout (server/src/<pkg>/ -> repo)."""
-    return Path(__file__).resolve().parents[3]
+    """The pages bundled into an installed package, else the root of the checkout it runs from."""
+    here = Path(__file__).resolve().parent
+    bundled = here / "content"
+    return bundled if bundled.is_dir() else here.parents[2]  # server/src/<pkg>/ -> repo root
 
 
 def resolve_content_dir(explicit: str | None = None) -> Path:
