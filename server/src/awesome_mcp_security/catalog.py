@@ -8,10 +8,12 @@ bare link lines. Links are either inline (`[text](url)`) or reference-style
 
 from __future__ import annotations
 
+import hashlib
 import html
 import logging
 import math
 import re
+import threading
 import time
 from collections import Counter
 from dataclasses import dataclass, field
@@ -33,6 +35,7 @@ _GITHUB_REPO = re.compile(r"^(?:https?://)?(?:www\.)?github\.com/([\w.-]+)/([\w.
 _BARE_REPO = re.compile(r"^([\w.-]+)/([\w.-]+)$")
 # github.com/<first segment> values that are site pages, not repository owners.
 _GITHUB_NON_OWNERS = {"orgs", "apps", "topics", "search", "features", "marketplace", "sponsors", "settings", "advisories"}
+_SEE_ALSO = re.compile(r"\s*\(see\b", re.IGNORECASE)
 _CVE = re.compile(r"CVE-\d{4}-\d{4,}", re.IGNORECASE)
 _WORD = re.compile(r"[a-z0-9]+(?:[-.][a-z0-9]+)*")
 
@@ -102,6 +105,7 @@ class Topic:
     path: Path
     sections: list[str]
     entries: list[Entry]
+    text: str = ""  # the page as parsed, so readers never see a newer or missing file mid-snapshot
 
 
 def github_repo(url: str) -> str | None:
@@ -143,8 +147,6 @@ def clean(text: str) -> str:
 
 def _first_link(text: str, refs: dict[str, str]) -> str | None:
     for m in _LINK.finditer(text):
-        if m.group(1).startswith("!"):
-            continue
         if m.group(2):
             return m.group(2)
         url = refs.get((m.group(3) or "").lower())
@@ -178,8 +180,10 @@ def _split_row(line: str) -> list[str]:
 
 def parse_topic(path: Path) -> Topic:
     slug = slug_for(path)
-    lines = path.read_text(encoding="utf-8").splitlines()
+    page_text = path.read_text(encoding="utf-8")
+    lines = page_text.splitlines()
     refs = {}
+    seen_ids: Counter[str] = Counter()
     for line in lines:
         m = _REF_DEF.match(line)
         if m:
@@ -202,9 +206,16 @@ def parse_topic(path: Path) -> Topic:
         repo = badge.group(1) if badge else (github_repo(url) if url else None)
         links = _all_links(raw, refs)
         cves = sorted({c.upper() for c in _CVE.findall(raw)})
+        # Ids come from the entry's link (or title), not its position, so they survive
+        # rows being added above them; an id that no longer exists fails loudly.
+        key = normalize_url(url) if url else row_title.lower()
+        eid = f"{slug}:{hashlib.sha1(key.encode()).hexdigest()[:8]}"
+        seen_ids[eid] += 1
+        if seen_ids[eid] > 1:
+            eid += f"-{seen_ids[eid]}"  # the same link listed again on this page
         entries.append(
             Entry(
-                id=f"{slug}:{len(entries) + 1}",
+                id=eid,
                 topic=slug,
                 section=section(),
                 title=row_title,
@@ -278,7 +289,7 @@ def parse_topic(path: Path) -> Topic:
         rest = clean(body[m.end():]) if m else ""
         add(link_title, url, {"Summary": rest} if rest else {}, body, lineno)
 
-    return Topic(slug=slug, title=title or slug, path=path, sections=sections, entries=entries)
+    return Topic(slug=slug, title=title or slug, path=path, sections=sections, entries=entries, text=page_text)
 
 
 # Words that carry no meaning in a search over this list.
@@ -362,10 +373,11 @@ class Catalog:
             key = normalize_url(entry.url) if entry.url else eid
             if key in seen:
                 continue  # pages list some projects in several sections; keep the best-ranked one
-            if not entry.url:
-                # A link-less "X (see ... above)" row adds nothing once X itself is in the results.
-                stem_title = re.split(r"\s*\(see\b", entry.title, maxsplit=1, flags=re.IGNORECASE)[0].lower()
-                if any(r.title.lower().startswith(stem_title) for r in results):
+            # A link-less "X (see ... above)" row adds nothing once X itself is in the results.
+            see = _SEE_ALSO.search(entry.title) if not entry.url else None
+            if see:
+                stem_title = entry.title[: see.start()].strip().lower()
+                if len(stem_title) >= 8 and any(r.title.lower().startswith(stem_title) for r in results):
                     continue
             seen.add(key)
             results.append(entry)
@@ -375,7 +387,7 @@ class Catalog:
 
     def section_text(self, slug: str, heading: str) -> str:
         """The Markdown under `heading` on a topic page, up to the next heading of the same or higher level."""
-        lines = self.topics[slug].path.read_text(encoding="utf-8").splitlines()
+        lines = self.topics[slug].text.splitlines()
         out: list[str] = []
         level = None
         for line in lines:
@@ -423,7 +435,9 @@ class Catalog:
         """
         if looks_like_link(project):
             about, mentions = self.lookup(project)
-            return "link", about[:limit], mentions[:limit]
+            if about or mentions or "/" in project:
+                return "link", about[:limit], mentions[:limit]
+            # A bare dotted word may be a product name ("Node.js") rather than a domain.
         return "name", self.search(project, limit=limit), []
 
     def by_cve(self, cve_id: str) -> list[Entry]:
@@ -449,6 +463,7 @@ class LiveCatalog:
         self._catalog = Catalog(content_dir)
         self._stamp = self._fingerprint()
         self._checked = clock()
+        self._lock = threading.Lock()  # tools run in worker threads; one reload at a time
 
     def _fingerprint(self) -> tuple:
         stamp = []
@@ -458,10 +473,17 @@ class LiveCatalog:
         return tuple(stamp)
 
     def get(self) -> Catalog:
-        now = self._clock()
-        if now - self._checked < self.interval:
+        if self._clock() - self._checked < self.interval:
             return self._catalog
-        self._checked = now
+        with self._lock:
+            now = self._clock()
+            if now - self._checked < self.interval:
+                return self._catalog  # another thread just checked
+            self._checked = now
+            self._reload_if_changed()
+        return self._catalog
+
+    def _reload_if_changed(self) -> None:
         try:
             stamp = self._fingerprint()
             if stamp != self._stamp:
@@ -470,4 +492,3 @@ class LiveCatalog:
                 logger.info("reloaded %d topic pages from %s", len(self._catalog.topics), self.content_dir)
         except (OSError, UnicodeDecodeError) as exc:
             logger.warning("keeping the previous catalog; reload failed: %s", exc)
-        return self._catalog

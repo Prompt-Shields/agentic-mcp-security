@@ -7,6 +7,7 @@ fetches the URLs it returns, writes files, or reaches the network.
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import os
 import re
 import sys
@@ -16,7 +17,7 @@ from typing import Annotated, Any
 from pydantic import Field
 
 from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ResourceError, ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 
@@ -69,6 +70,13 @@ def _limit(limit: int) -> int:
     return max(1, min(limit, MAX_LIMIT))
 
 
+def _version() -> str:
+    try:
+        return importlib.metadata.version("awesome-mcp-security-server")
+    except importlib.metadata.PackageNotFoundError:
+        return "0.0.0+unknown"
+
+
 def build_server(source: Catalog | LiveCatalog) -> MCPServer:
     """Build the server over a fixed Catalog, or a LiveCatalog that follows edits to the pages."""
     catalog = source.get if isinstance(source, LiveCatalog) else lambda: source
@@ -77,7 +85,7 @@ def build_server(source: Catalog | LiveCatalog) -> MCPServer:
         name="awesome-mcp-security",
         title="Awesome Agentic MCP Security",
         instructions=INSTRUCTIONS,
-        version="0.1.0",
+        version=_version(),
     )
 
     # Each tool takes one snapshot via catalog(), so a reload mid-call can't mix two versions.
@@ -150,7 +158,7 @@ def build_server(source: Catalog | LiveCatalog) -> MCPServer:
         }
 
     @mcp.tool(annotations=_READ_ONLY)
-    def get_entry(entry_id: Annotated[str, Field(description="An entry id such as 'security_tools:3'.")]) -> dict[str, Any]:
+    def get_entry(entry_id: Annotated[str, Field(description="An entry id as returned by another tool, e.g. 'security_tools:1a2b3c4d'.")]) -> dict[str, Any]:
         """Fetch one entry's full record (every column and link) by the id other tools returned.
 
         Result lists show a trimmed summary; use this when you need the rest.
@@ -213,17 +221,32 @@ def build_server(source: Catalog | LiveCatalog) -> MCPServer:
             "note": CONTENT_NOTE,
         }
 
-    def page_reader(path: Path):
-        return lambda: path.read_text(encoding="utf-8")
+    def read_page(slug: str) -> str:
+        # Served from the current snapshot, so a page edited or removed since startup reads
+        # consistently with the tools. Only known slugs resolve: no URI can name another file.
+        topic = catalog().topics.get(slug)
+        if topic is None:
+            raise ResourceError(f"unknown topic {slug!r}")
+        return topic.text
 
-    # Only known pages are registered, so a resource URI can never name another file.
+    def page_reader(slug: str):
+        return lambda: read_page(slug)
+
+    # Pages present at startup are listed as resources; the template also serves pages
+    # added while the server runs.
     for t in catalog().topics.values():
         mcp.resource(
             f"{URI_SCHEME}://topics/{t.slug}",
             name=t.slug,
             title=t.title,
             mime_type="text/markdown",
-        )(page_reader(t.path))
+        )(page_reader(t.slug))
+    mcp.resource(
+        f"{URI_SCHEME}://topics/{{slug}}",
+        name="topic-page",
+        description="The Markdown of one topic page; slugs come from list_topics.",
+        mime_type="text/markdown",
+    )(read_page)
 
     register_prompts(mcp, catalog)
     return mcp
@@ -272,8 +295,9 @@ def main(argv: list[str] | None = None) -> None:
         action="append",
         default=[],
         metavar="HOST[:PORT]",
-        help="A Host header value clients use to reach the server (repeatable; HOST:* allows any port). "
-        "Required when --host is not a loopback address.",
+        help="A Host header value clients use to reach the server (repeatable). HOST:* matches HOST with any "
+        "explicit port, but not bare HOST, which clients send on the default port (e.g. behind a TLS proxy), "
+        "so list that too. Required when --host is not a loopback address.",
     )
     parser.add_argument(
         "--allowed-origin",

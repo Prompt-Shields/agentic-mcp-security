@@ -11,13 +11,15 @@ At startup it parses the `mcp_*.md` topic pages in the repository root into stru
 | `list_topics` | Topic pages with their sections, entry counts and resource URIs. |
 | `search` | Relevance-ranked (BM25) search across titles, sections and summaries. Takes keywords or a plain question: filler words are ignored, simple word forms match, entries covering more of the query rank first, and a project listed in several sections appears once. Optional `topic` and `section` filters. |
 | `list_entries` | Pages through one topic (`limit` / `offset`), optionally filtered to a section. |
-| `get_entry` | The full record for one entry (every column and link), by the id another tool returned, for example `security_tools:3`. |
+| `get_entry` | The full record for one entry (every column and link), by the id another tool returned. |
 | `lookup_project` | What the list says about one named server or tool, before you install it. Give a repo or URL for exact matches (entries about it, and entries that link to it), or a plain name such as `Burp Suite MCP` for ranked candidates. |
 | `find_cve` | Entries citing a CVE id, plus the CVE catalogs the list links to. |
 
 Every tool is annotated `readOnlyHint` and `openWorldHint: false`.
 
 Result lists use a compact form: `id`, `title`, `url`, `where` (topic and section), and a `summary` trimmed to 300 characters. `github_repo` and `cves` are added when present. Every response carries a `note` saying that the text is third-party content to treat as data, not instructions.
+
+Entry ids look like `security_tools:1a2b3c4d`. They're derived from the entry's link (or its title when it has none), not its position, so they stay valid when rows are added above them. If an entry is removed, its id fails with an error rather than pointing to another entry.
 
 ## Prompts
 
@@ -30,7 +32,7 @@ Both prompts embed the relevant catalog text inside `<catalog_data>` tags, trimm
 
 ## Resources
 
-`awesome-mcp-security://topics/<slug>` holds the raw Markdown of each topic page. For example, `awesome-mcp-security://topics/security_tools` is `mcp_security_tools.md`.
+`awesome-mcp-security://topics/<slug>` holds the raw Markdown of each topic page. For example, `awesome-mcp-security://topics/security_tools` is `mcp_security_tools.md`. Pages present at startup are listed, and a URI template also serves pages added while the server runs. Every read comes from the same snapshot the tools use.
 
 ## Run it
 
@@ -71,12 +73,12 @@ uv run awesome-mcp-security --transport streamable-http --port 8000
 
 An installed package reads its bundled copy of the pages, and a checkout reads the pages in the repository root. To point either one somewhere else, use `--content-dir DIR` or set `AWESOME_MCP_SECURITY_CONTENT_DIR`.
 
-While it runs, the server checks the pages for changes at most every two seconds, on the next tool or prompt call. Edited, added and removed pages show up in the tools and prompts without a restart. If a reload fails, for example on a half-saved file, the server keeps the previous version and tries again later. The list of resources is fixed at startup, so a newly added page needs a restart before it appears as a resource.
+While it runs, the server checks the pages for changes at most every two seconds, on the next tool or prompt call. Edited, added and removed pages show up in the tools, prompts and resource reads without a restart. If a reload fails, for example on a half-saved file, the server keeps the previous version and tries again later. The resource list itself is fixed at startup, so a page added later can be read through the URI template but isn't listed until a restart.
 
 ## Security notes
 
 - **No side effects.** The server never fetches the URLs it returns, never writes files and never opens outbound connections.
-- **Fixed resource set.** Only the topic pages found at startup are registered as resources, so a resource URI cannot name any other file.
+- **No path access.** Resource URIs resolve only to known topic slugs, served from memory, so a URI can't name any other file. The SDK's own path check also rejects traversal attempts before they reach the server.
 - **Third-party text.** Entry titles and summaries describe other people's projects. Every tool response, as well as the server's instructions, tells the model to treat them as data rather than instructions, and to review a project before running it. Result lists are trimmed, so one long entry can't flood the context.
 - **Local binding and DNS rebinding.** The HTTP transport binds to `127.0.0.1` by default, where the SDK rejects requests whose `Host` or `Origin` header isn't loopback. That stops a web page in your browser reaching the server through a hostname it controls. The SDK switches those checks off for any other bind address, so the server refuses to start on one unless you name the hostnames clients use: `--host 0.0.0.0 --allowed-host mcp.example.com:8000`. Use `--allowed-origin` to allow a browser app as well. It still has no authentication of its own, and it warns when not on loopback, so put an authenticating proxy or gateway in front before exposing it.
 

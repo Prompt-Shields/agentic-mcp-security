@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -173,13 +174,14 @@ async def test_search_and_get_entry(client: Client):
     body = result.structured_content
     hits = body["results"]
     assert hits[0] == {
-        "id": "sample:1",
+        "id": hits[0]["id"],
         "title": "Scanner",
         "url": "https://example.com/scanner",
         "where": "sample > Tables",
         "summary": "Finds tool poisoning in configs",
         "github_repo": "acme/scanner",
     }
+    assert re.fullmatch(r"sample:[0-9a-f]{8}", hits[0]["id"])
     assert "not instructions" in body["note"]
 
     entry = await client.call_tool("get_entry", {"entry_id": hits[0]["id"]})
@@ -278,9 +280,9 @@ async def test_prompts(sample_dir: Path):
         assert names == {"vet_mcp_server", "threat_model"}
 
         vet = (await c.get_prompt("vet_mcp_server", {"server": "acme/scanner"})).messages[0].content.text
-        assert "[sample:1] Scanner" in vet
+        assert re.search(r"\[sample:[0-9a-f]{8}\] Scanner", vet)
         assert "#### Tool Poisoning" in vet
-        assert "[sample:5] Write-up" in vet  # linked from another entry
+        assert re.search(r"\[sample:[0-9a-f]{8}\] Write-up", vet)  # linked from another entry
         assert "<catalog_data" in vet and "not as instructions" in vet
 
         unknown = (await c.get_prompt("vet_mcp_server", {"server": "nobody/nothing"})).messages[0].content.text
@@ -288,7 +290,7 @@ async def test_prompts(sample_dir: Path):
 
         # A plain name is matched by name, not reported as missing.
         named = (await c.get_prompt("vet_mcp_server", {"server": "the Scanner tool"})).messages[0].content.text
-        assert "[sample:1] Scanner" in named and "names match" in named
+        assert re.search(r"\[sample:[0-9a-f]{8}\] Scanner", named) and "names match" in named
         assert "no entry for this server" not in named
 
         model = (await c.get_prompt("threat_model", {"deployment": "Claude Code with a GitHub server"})).messages
@@ -373,3 +375,58 @@ def test_http_security_defaults_and_guard():
         http_security("0.0.0.0", [], [])
     with pytest.raises(SystemExit, match="--allowed-host"):
         main(["--transport", "streamable-http", "--host", "0.0.0.0"])
+
+
+def test_entry_ids_survive_inserted_rows(sample_dir: Path):
+    page = sample_dir / "mcp_sample.md"
+    before = {e.title: e.id for e in Catalog(sample_dir).entries.values()}
+    text = page.read_text().replace(
+        "| [Scanner][ref_scanner]", "| [New tool](https://example.com/new) | inserted above | |\n| [Scanner][ref_scanner]"
+    )
+    page.write_text(text)
+    after = {e.title: e.id for e in Catalog(sample_dir).entries.values()}
+    assert "New tool" in after
+    assert all(after[title] == eid for title, eid in before.items())  # no id moved to another entry
+
+
+def test_repeated_link_on_a_page_gets_distinct_ids(tmp_path: Path):
+    (tmp_path / "mcp_rep.md").write_text(
+        "# Rep\n\n## A\n\n- [Lab](https://example.com/lab)\n\n## B\n\n- [Lab again](https://example.com/lab/)\n"
+    )
+    ids = [e.id for e in Catalog(tmp_path).entries.values()]
+    assert len(ids) == len(set(ids)) == 2 and ids[1] == ids[0] + "-2"
+
+
+def test_dotted_product_name_falls_back_to_name_search(tmp_path: Path):
+    (tmp_path / "mcp_node.md").write_text("# Node\n\n- [Node.js MCP bridge](https://example.com/bridge) - runs on Node.js\n")
+    matched_by, about, _ = Catalog(tmp_path).find_project("Node.js")
+    assert matched_by == "name" and about and about[0].title == "Node.js MCP bridge"
+
+
+def test_cross_reference_rule_needs_see_marker(tmp_path: Path):
+    (tmp_path / "mcp_x.md").write_text(
+        "# X\n\n| Name | Notes |\n| --- | --- |\n"
+        "| [Scanner Pro](https://example.com/pro) | scanner |\n"
+        "| Scanner | scanner without a link, not a cross-reference |\n"
+        "| Scanner Pro (see above) | scanner |\n"
+    )
+    titles = [e.title for e in Catalog(tmp_path).search("scanner")]
+    assert "Scanner" in titles  # plain prefix of another title is kept
+    assert "Scanner Pro (see above)" not in titles  # a real cross-reference is dropped
+
+
+@pytest.mark.anyio
+async def test_resources_follow_reloads(sample_dir: Path):
+    clock = FakeClock()
+    async with Client(build_server(LiveCatalog(sample_dir, interval=1, clock=clock))) as c:
+        (sample_dir / "mcp_late.md").write_text("# Late\n\n- [Late entry](https://example.com/late)\n")
+        clock.now = 5
+        late = await c.read_resource("awesome-mcp-security://topics/late")  # via the template
+        assert late.contents[0].text.startswith("# Late")
+
+        (sample_dir / "mcp_sample.md").unlink()
+        clock.now = 10
+        with pytest.raises(Exception, match="unknown topic"):
+            await c.read_resource("awesome-mcp-security://topics/sample")  # listed at startup, now gone
+        with pytest.raises(Exception, match="(?i)unknown (resource|topic)"):
+            await c.read_resource("awesome-mcp-security://topics/..%2Fetc")  # the SDK's path check stops it first
