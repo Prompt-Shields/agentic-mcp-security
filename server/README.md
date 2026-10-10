@@ -13,7 +13,7 @@ At startup it parses the `mcp_*.md` topic pages in the repository root into stru
 | `list_entries` | Pages through one topic (`limit` / `offset`), optionally filtered to a section. |
 | `get_entry` | The full record for one entry (every column and link), by the id another tool returned. |
 | `lookup_project` | What the list says about one named server or tool, before you install it. Give a repo or URL for exact matches (entries about it, and entries that link to it), or a plain name such as `Burp Suite MCP` for ranked candidates. |
-| `find_cve` | Entries citing a CVE id, plus the CVE catalogs the list links to. |
+| `find_cve` | One CVE: the CVE page's own record for it (`advisories`: affected component, issue, fixed version, advisory links), the blogs, talks, labs and videos that cite it (`writeups`), and the MCP CVE catalogs to look in further (`cve_catalogs`). |
 
 Every tool is annotated `readOnlyHint` and `openWorldHint: false`.
 

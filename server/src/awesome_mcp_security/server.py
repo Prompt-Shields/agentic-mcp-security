@@ -203,21 +203,26 @@ def build_server(source: Catalog | LiveCatalog) -> MCPServer:
 
     @mcp.tool(annotations=_READ_ONLY)
     def find_cve(cve_id: Annotated[str, Field(description="A CVE id, e.g. 'CVE-2025-6514'.")]) -> dict[str, Any]:
-        """Write-ups, advisories and videos about one CVE in MCP software, plus the MCP CVE catalogs.
+        """The list's record of one CVE in MCP software, the write-ups that cite it, and where to look further.
 
-        Use whenever the user mentions a CVE id. The list does not mirror every
-        CVE, so the MCP-specific CVE catalogs it links to are returned too, for
-        looking further.
+        Use whenever the user mentions a CVE id. `advisories` holds the CVE page's own
+        rows for it (affected component, issue category, fixed version, advisory links);
+        `writeups` holds blogs, talks, labs and videos that cite it. The list does not
+        mirror every CVE, so `cve_catalogs` names the MCP CVE catalogs and advisory
+        sources it links to.
         """
         cve_id = cve_id.strip()
         if not _CVE_ID.match(cve_id):
             raise ToolError(f"{cve_id!r} is not a CVE id (expected CVE-YYYY-NNNN)")
         cat = catalog()
-        catalogs = cat.topics.get("cve")
+        cited = cat.by_cve(cve_id)
+        cve_page = cat.topics.get("cve")
         return {
             "cve": cve_id.upper(),
-            "entries": [e.to_brief() for e in cat.by_cve(cve_id)],
-            "cve_catalogs": [e.to_brief() for e in catalogs.entries] if catalogs else [],
+            "advisories": [e.to_brief() for e in cited if e.topic == "cve"],
+            "writeups": [e.to_brief() for e in cited if e.topic != "cve"][:MAX_LIMIT],
+            # Catalog and source rows only, not the page's per-CVE rows (hundreds of them).
+            "cve_catalogs": [e.to_brief() for e in cve_page.entries if not e.cves] if cve_page else [],
             "note": CONTENT_NOTE,
         }
 

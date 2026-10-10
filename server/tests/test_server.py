@@ -205,8 +205,51 @@ async def test_list_entries_paging(client: Client):
 @pytest.mark.anyio
 async def test_find_cve(client: Client):
     found = (await client.call_tool("find_cve", {"cve_id": "cve-2025-6514"})).structured_content
-    assert [e["title"] for e in found["entries"]] == ["Inline"]
+    assert [e["title"] for e in found["writeups"]] == ["Inline"]
+    assert found["advisories"] == [] and found["cve_catalogs"] == []
     assert (await client.call_tool("find_cve", {"cve_id": "not-a-cve"})).is_error
+
+
+CVE_PAGE = """\
+# MCP CVE catalogs
+
+## External catalogs
+
+| Catalog | Description |
+| --- | --- |
+| [acme/cve-index](https://github.com/acme/cve-index) | Curated index of MCP CVEs. |
+
+## Published CVEs
+
+| CVE | Affected component | Issue | Fixed in | Links |
+| --- | --- | --- | --- | --- |
+| CVE-2025-6514 | mcp-remote (npm) | Command injection | >= 0.1.16 | [NVD][nvd_6514] · [GHSA][ghsa_6514] |
+| CVE-2025-49596 | MCP Inspector | RCE | 0.14.1 | [NVD][nvd_49596] |
+
+[nvd_6514]: https://nvd.nist.gov/vuln/detail/CVE-2025-6514
+[ghsa_6514]: https://github.com/advisories/GHSA-6xpm-ggf7-wc3p
+[nvd_49596]: https://nvd.nist.gov/vuln/detail/CVE-2025-49596
+"""
+
+
+def test_cve_rows_are_named_by_their_id(tmp_path: Path):
+    (tmp_path / "mcp_cve.md").write_text(CVE_PAGE)
+    rows = {e.title: e for e in Catalog(tmp_path).entries.values()}
+    row = rows["CVE-2025-6514"]  # not "NVD · GHSA", the links-only column
+    assert row.url == "https://nvd.nist.gov/vuln/detail/CVE-2025-6514"
+    assert row.fields["Affected component"] == "mcp-remote (npm)" and row.cves == ["CVE-2025-6514"]
+
+
+@pytest.mark.anyio
+async def test_find_cve_separates_advisories_writeups_and_catalogs(sample_dir: Path):
+    (sample_dir / "mcp_cve.md").write_text(CVE_PAGE)
+    async with Client(build_server(Catalog(sample_dir)), raise_exceptions=True) as c:
+        found = (await c.call_tool("find_cve", {"cve_id": "CVE-2025-6514"})).structured_content
+    assert [e["title"] for e in found["advisories"]] == ["CVE-2025-6514"]
+    assert "mcp-remote (npm)" in found["advisories"][0]["summary"]
+    assert [e["title"] for e in found["writeups"]] == ["Inline"]  # from the sample page
+    # Only catalog rows, never the page's other per-CVE rows.
+    assert [e["title"] for e in found["cve_catalogs"]] == ["acme/cve-index"]
 
 
 @pytest.mark.anyio
@@ -430,3 +473,12 @@ async def test_resources_follow_reloads(sample_dir: Path):
             await c.read_resource("awesome-mcp-security://topics/sample")  # listed at startup, now gone
         with pytest.raises(Exception, match="(?i)unknown (resource|topic)"):
             await c.read_resource("awesome-mcp-security://topics/..%2Fetc")  # the SDK's path check stops it first
+
+
+def test_linkless_row_uses_title_column(tmp_path: Path):
+    (tmp_path / "mcp_talks.md").write_text(
+        "# Talks\n\n| Focus | Title · Speaker | Summary |\n| --- | --- | --- |\n"
+        "| MCP · Agentic | **Golem To Murderbot** – Michael Schwartz | Delegation. |\n"
+    )
+    (row,) = Catalog(tmp_path).entries.values()
+    assert row.title == "Golem To Murderbot – Michael Schwartz" and row.fields["Focus"] == "MCP · Agentic"

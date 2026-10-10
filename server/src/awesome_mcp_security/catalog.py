@@ -169,6 +169,12 @@ def _all_links(text: str, refs: dict[str, str]) -> list[str]:
     return links
 
 
+def _links_only(cell: str) -> bool:
+    """True when a cell is nothing but links and separators, like "[NVD](..) · [GHSA](..)"."""
+    rest = _LINK.sub("", _IMAGE.sub("", cell))
+    return not re.sub(r"[\s·•|,;/–—-]+", "", rest)
+
+
 def _split_row(line: str) -> list[str]:
     line = line.strip()
     if line.startswith("|"):
@@ -267,9 +273,19 @@ def parse_topic(path: Path) -> Topic:
                 value = clean(cell)
                 if value:
                     fields[name] = value
-            # The first column naming a resource is the title (a leading date column is not).
-            first = next((c for c in cells if _first_link(c, refs)), cells[0] if cells else "")
+            # The first column naming a resource is the title (a leading date column is not)...
+            linked = next((i for i, c in enumerate(cells) if _first_link(c, refs)), None)
+            if linked is not None:
+                first = cells[linked]
+            else:
+                # No link: prefer a column headed "Title" over a leading tag or date column.
+                titled = next((i for i, h in enumerate(header) if "title" in h.lower() and i < len(cells)), 0)
+                first = cells[titled] if cells else ""
             url = _first_link(first, refs) or _first_link(stripped, refs)
+            # ...unless that column only holds links ("NVD · GHSA"): then the row is named by
+            # its first text column, as in a CVE table whose id column has no link.
+            if linked and _links_only(first):
+                first = next((c for c in cells[:linked] if clean(c)), first)
             row_title = clean(first)
             fields = {k: v for k, v in fields.items() if v != row_title}
             add(row_title, url, fields, stripped, lineno)
