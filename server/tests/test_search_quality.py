@@ -54,3 +54,13 @@ def test_no_duplicate_urls_in_results(catalog: Catalog):
 def test_linked_entries_outrank_cross_references(catalog: Catalog):
     hits = catalog.search("damn vulnerable mcp server", limit=3)
     assert all(e.url for e in hits[:2])
+
+
+def test_sections_the_prompts_quote_exist(catalog: Catalog):
+    from awesome_mcp_security.prompts import REQUIRED_OVERVIEW, REQUIRED_TOOL_SECTIONS
+
+    for heading in REQUIRED_OVERVIEW:
+        assert catalog.section_text("overview", heading).strip(), heading
+    sections = {e.section for e in catalog.topics["security_tools"].entries}
+    for section in REQUIRED_TOOL_SECTIONS:
+        assert section in sections, f"security_tools has no section {section!r}: {sorted(sections)}"

@@ -482,3 +482,16 @@ def test_linkless_row_uses_title_column(tmp_path: Path):
     )
     (row,) = Catalog(tmp_path).entries.values()
     assert row.title == "Golem To Murderbot – Michael Schwartz" and row.fields["Focus"] == "MCP · Agentic"
+
+
+@pytest.mark.anyio
+async def test_optional_overview_sections(sample_dir: Path):
+    overview = OVERVIEW + "\n## Review Update\n\n### Threat Modeling Questions\n\n* What can it read?\n"
+    (sample_dir / "mcp_overview.md").write_text(overview)
+    async with Client(build_server(Catalog(sample_dir)), raise_exceptions=True) as c:
+        with_it = (await c.get_prompt("threat_model", {"deployment": "x"})).messages[0].content.text
+        vet = (await c.get_prompt("vet_mcp_server", {"server": "acme/scanner"})).messages[0].content.text
+    assert '<catalog_data name="threat modeling questions">' in with_it and "What can it read?" in with_it
+    assert '<catalog_data name="common failure modes">' not in with_it  # absent from this page: left out
+    assert '<catalog_data name="deployment checklist">' not in vet
+    assert "\n\n\n" not in with_it and "\n\n\n" not in vet
