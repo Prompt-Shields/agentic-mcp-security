@@ -414,6 +414,18 @@ class Catalog:
                 mentions.append(e)
         return about, mentions
 
+    def find_project(self, project: str, limit: int = 10) -> tuple[str, list[Entry], list[Entry]]:
+        """(matched_by, about, mentioned_in) for a project given by link or by name.
+
+        A URL, domain or `owner/repo` is matched exactly (see `lookup`). A plain name
+        such as "Burp Suite MCP" returns ranked search candidates, which may include
+        unrelated projects, with nothing in `mentioned_in`.
+        """
+        if looks_like_link(project):
+            about, mentions = self.lookup(project)
+            return "link", about[:limit], mentions[:limit]
+        return "name", self.search(project, limit=limit), []
+
     def by_cve(self, cve_id: str) -> list[Entry]:
         cve_id = cve_id.upper()
         return [e for e in self.entries.values() if cve_id in e.cves]

@@ -23,7 +23,7 @@ Result lists use a compact form: `id`, `title`, `url`, `where` (topic and sectio
 
 | Prompt | Argument | What it sets up |
 | --- | --- | --- |
-| `vet_mcp_server` | `server`: a GitHub repo or URL | A pre-install review covering what the list says about the server, each key risk area, which listed scanners fit, and a go/no-go checklist. |
+| `vet_mcp_server` | `server`: a name, GitHub repo or URL | A pre-install review covering what the list says about the server, each key risk area, which listed scanners fit, and a go/no-go checklist. |
 | `threat_model` | `deployment`: a plain description | A threat model of that deployment against the list's risk areas and security principles. |
 
 Both prompts embed the relevant catalog text inside `<catalog_data>` tags, trimmed to keep the prompt short. They tell the model to treat that text as data. Angle brackets in it are replaced so that text can't close the tag early.
@@ -78,7 +78,7 @@ While it runs, the server checks the pages for changes at most every two seconds
 - **No side effects.** The server never fetches the URLs it returns, never writes files and never opens outbound connections.
 - **Fixed resource set.** Only the topic pages found at startup are registered as resources, so a resource URI cannot name any other file.
 - **Third-party text.** Entry titles and summaries describe other people's projects. Every tool response, as well as the server's instructions, tells the model to treat them as data rather than instructions, and to review a project before running it. Result lists are trimmed, so one long entry can't flood the context.
-- **Local binding.** The HTTP transport binds to `127.0.0.1` by default and has no authentication. Put it behind an authenticating proxy or gateway before exposing it beyond localhost.
+- **Local binding and DNS rebinding.** The HTTP transport binds to `127.0.0.1` by default, where the SDK rejects requests whose `Host` or `Origin` header isn't loopback. That stops a web page in your browser reaching the server through a hostname it controls. The SDK switches those checks off for any other bind address, so the server refuses to start on one unless you name the hostnames clients use: `--host 0.0.0.0 --allowed-host mcp.example.com:8000`. Use `--allowed-origin` to allow a browser app as well. It still has no authentication of its own, and it warns when not on loopback, so put an authenticating proxy or gateway in front before exposing it.
 
 ## Develop
 

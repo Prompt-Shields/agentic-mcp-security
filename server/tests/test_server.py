@@ -286,6 +286,11 @@ async def test_prompts(sample_dir: Path):
         unknown = (await c.get_prompt("vet_mcp_server", {"server": "nobody/nothing"})).messages[0].content.text
         assert "no entry for this server" in unknown
 
+        # A plain name is matched by name, not reported as missing.
+        named = (await c.get_prompt("vet_mcp_server", {"server": "the Scanner tool"})).messages[0].content.text
+        assert "[sample:1] Scanner" in named and "names match" in named
+        assert "no entry for this server" not in named
+
         model = (await c.get_prompt("threat_model", {"deployment": "Claude Code with a GitHub server"})).messages
         text = model[0].content.text
         assert "Claude Code with a GitHub server" in text and "Treat every server as a boundary." in text
@@ -350,3 +355,21 @@ async def test_server_follows_page_edits(sample_dir: Path):
         clock.now = 5
         hits = (await c.call_tool("search", {"query": "hot reload"})).structured_content["results"]
         assert hits[0]["title"] == "Hot reload"
+
+
+def test_http_security_defaults_and_guard():
+    from awesome_mcp_security.server import http_security, main
+
+    assert http_security("127.0.0.1", [], []) is None  # SDK's loopback protection applies
+    extended = http_security("127.0.0.1", ["mcp.local:8000"], [])
+    assert extended.enable_dns_rebinding_protection
+    assert "localhost:*" in extended.allowed_hosts and "mcp.local:8000" in extended.allowed_hosts
+
+    public = http_security("0.0.0.0", ["mcp.example.com:*"], ["https://app.example.com"])
+    assert public.enable_dns_rebinding_protection
+    assert public.allowed_hosts == ["mcp.example.com:*"] and public.allowed_origins == ["https://app.example.com"]
+
+    with pytest.raises(SystemExit, match="--allowed-host"):
+        http_security("0.0.0.0", [], [])
+    with pytest.raises(SystemExit, match="--allowed-host"):
+        main(["--transport", "streamable-http", "--host", "0.0.0.0"])

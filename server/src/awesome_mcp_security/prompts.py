@@ -57,18 +57,25 @@ def overview_text(catalog: Catalog, heading: str) -> str:
 def register_prompts(mcp: MCPServer, current: Callable[[], Catalog]) -> None:
     @mcp.prompt(title="Vet an MCP server before installing it")
     def vet_mcp_server(
-        server: Annotated[str, Field(description="The server's GitHub repo (owner/repo) or URL.")],
+        server: Annotated[
+            str, Field(description="The server's name (e.g. 'Burp Suite MCP'), GitHub repo (owner/repo) or URL.")
+        ],
     ) -> str:
         """Review an MCP server against the list's risk areas, what the list says about it, and the scanners it recommends."""
         catalog = current()
-        about, mentions = catalog.lookup(server)
+        matched_by, about, mentions = catalog.find_project(server, limit=MAX_ENTRIES)
+        none = "(the list has no entry for this server; that says nothing about whether it is safe)"
+        if matched_by == "name":
+            about_label = "entries whose names match; some may be other projects, so check each title"
+        else:
+            about_label = "entries about this server"
         return f"""\
 Help me decide whether to install this MCP server: {server}
 
 {_DATA_NOTE}
 
-<catalog_data name="entries about this server">
-{entry_block(about, "(the list has no entry for this server; that says nothing about whether it is safe)")}
+<catalog_data name="{about_label}">
+{entry_block(about, none)}
 </catalog_data>
 
 <catalog_data name="entries that link to it">
@@ -84,7 +91,8 @@ Help me decide whether to install this MCP server: {server}
 </catalog_data>
 
 Please:
-1. Summarize what the list says about this server, citing entry ids. If it says nothing, say so.
+1. Summarize what the list says about this server, citing entry ids. Ignore entries about other \
+projects. If it says nothing, say so.
 2. For each risk area, say what to check in this server's code, tool descriptions, permissions and \
 configuration, and what a bad answer would look like.
 3. Pick one or two scanners from the list that fit, and say what each would catch here.

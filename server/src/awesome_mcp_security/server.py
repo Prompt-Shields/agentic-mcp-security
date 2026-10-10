@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -16,9 +17,10 @@ from pydantic import Field
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 
-from .catalog import Catalog, LiveCatalog, looks_like_link
+from .catalog import Catalog, LiveCatalog
 from .prompts import register_prompts
 
 CONTENT_DIR_ENV = "AWESOME_MCP_SECURITY_CONTENT_DIR"
@@ -182,22 +184,12 @@ def build_server(source: Catalog | LiveCatalog) -> MCPServer:
         project = project.strip()
         if not project:
             raise ToolError("project must not be empty")
-        n = _limit(limit)
-        cat = catalog()
-        if not looks_like_link(project):
-            return {
-                "project": project,
-                "matched_by": "name",
-                "about": [e.to_brief() for e in cat.search(project, limit=n)],
-                "mentioned_in": [],
-                "note": CONTENT_NOTE,
-            }
-        about, mentions = cat.lookup(project)
+        matched_by, about, mentions = catalog().find_project(project, limit=_limit(limit))
         return {
             "project": project,
-            "matched_by": "link",
-            "about": [e.to_brief() for e in about[:n]],
-            "mentioned_in": [e.to_brief() for e in mentions[:n]],
+            "matched_by": matched_by,
+            "about": [e.to_brief() for e in about],
+            "mentioned_in": [e.to_brief() for e in mentions],
             "note": CONTENT_NOTE,
         }
 
@@ -237,6 +229,35 @@ def build_server(source: Catalog | LiveCatalog) -> MCPServer:
     return mcp
 
 
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
+_LOOPBACK_ALLOWED_HOSTS = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+_LOOPBACK_ALLOWED_ORIGINS = ["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"]
+
+
+def http_security(
+    bind_host: str, allowed_hosts: list[str], allowed_origins: list[str]
+) -> TransportSecuritySettings | None:
+    """Host/Origin checks against DNS rebinding for the HTTP transport.
+
+    On a loopback address the SDK enables them by default (None keeps that).
+    The SDK turns them off for any other address, so there we require the
+    hostnames clients will use and refuse to start without them.
+    """
+    loopback = bind_host in LOOPBACK_HOSTS
+    if loopback and not allowed_hosts and not allowed_origins:
+        return None
+    if not allowed_hosts and not loopback:
+        raise SystemExit(
+            f"refusing to listen on {bind_host} without --allowed-host: name the hostname clients use "
+            "(e.g. --allowed-host mcp.example.com:8000) so requests for other hosts are rejected"
+        )
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=(_LOOPBACK_ALLOWED_HOSTS if loopback else []) + allowed_hosts,
+        allowed_origins=(_LOOPBACK_ALLOWED_ORIGINS if loopback else []) + allowed_origins,
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
@@ -246,13 +267,38 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
     parser.add_argument("--host", default="127.0.0.1", help="streamable-http bind address.")
     parser.add_argument("--port", type=int, default=8000, help="streamable-http port.")
+    parser.add_argument(
+        "--allowed-host",
+        action="append",
+        default=[],
+        metavar="HOST[:PORT]",
+        help="A Host header value clients use to reach the server (repeatable; HOST:* allows any port). "
+        "Required when --host is not a loopback address.",
+    )
+    parser.add_argument(
+        "--allowed-origin",
+        action="append",
+        default=[],
+        metavar="ORIGIN",
+        help="A browser Origin allowed to call the server, e.g. https://app.example.com (repeatable). "
+        "Requests without an Origin header, as from most MCP clients, are always allowed.",
+    )
     args = parser.parse_args(argv)
+
+    security = None
+    if args.transport == "streamable-http":
+        security = http_security(args.host, args.allowed_host, args.allowed_origin)  # fail before loading pages
 
     server = build_server(LiveCatalog(resolve_content_dir(args.content_dir)))
     if args.transport == "stdio":
         server.run("stdio")
     else:
-        server.run("streamable-http", host=args.host, port=args.port)
+        if args.host not in LOOPBACK_HOSTS:
+            print(
+                f"warning: listening on {args.host} with no authentication; put an authenticating proxy in front",
+                file=sys.stderr,
+            )
+        server.run("streamable-http", host=args.host, port=args.port, transport_security=security)
 
 
 if __name__ == "__main__":
