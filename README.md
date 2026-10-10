@@ -3,7 +3,7 @@
 >
 > - **Upstream:** [mcp-security-project/awesome-agentic-mcp-security](https://github.com/mcp-security-project/awesome-agentic-mcp-security)
 > - **Why it is here:** a reading list we track for Model Context Protocol security research. **An MCP Gateway is a proxy that sits between an AI agent and the Model Context Protocol servers it calls, so tool invocations can be authenticated, filtered, and logged in one place** — the failure modes catalogued upstream are the ones such a gateway has to address.
-> - **Status:** this fork is 62 commits behind upstream. Read the upstream repository instead; it is current and this is not.
+> - **Status:** synced with upstream on 2026-10-10 (upstream commit `e56660a`). Upstream remains the canonical, current source; this copy can fall behind again.
 > - **Vulnerabilities:** report to upstream, not here. For Prompt Shields products, email security@promptshields.com.
 
 ---
@@ -43,6 +43,7 @@ If you only have a few minutes, these are widely-cited starting points across th
 - [Model Context Protocol Specification](https://modelcontextprotocol.io/specification/2025-11-25) - Official MCP specification.
 - [Security Best Practices](https://modelcontextprotocol.io/docs/tutorials/security/security_best_practices) - Confused deputy, token passthrough, SSRF, session hijacking, and scope minimization.
 - [OWASP MCP Top 10](https://owasp.org/www-project-mcp-top-10/) - Community risk taxonomy for MCP-enabled systems.
+- [MCP Azure Security Guide](https://microsoft.github.io/mcp-azure-security-guide/) - Microsoft guide mapping the OWASP MCP Top 10 to concrete Azure mitigations.
 - [MCP Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/MCP_Security_Cheat_Sheet.html) - OWASP cheat sheet covering tool trust, validation, and supply-chain hygiene.
 
 **Foundational research and incidents**
@@ -87,7 +88,7 @@ Data leakage, unauthorized actions, prompt injection chains, tool poisoning, sup
 30+ talks and briefings where MCP security is a primary focus, with speakers, venues, links to recordings or slides where public, and relevance to exploits, tool trust, or governance. Spans Black Hat USA, Black Hat Europe, Black Hat Asia, RSAC, OWASP, BSides, SecTor, and regional chapter events.
 
 **Recent highlights:**
-CoSAI at RSAC 2026: Securing MCP: Mitigating New Threats in Agentic AI Deployments (Sarah Novotny, Jason Clinton). Black Hat Europe 2025: [MCP Unchained: Compromising The AI Agent Ecosystem Via Its "Universal Connector"](https://github.com/Tencent/AI-Infra-Guard/blob/main/BHEU-25-MCP-Unchained-Compromising-The-AI-Agent-Ecosystem-Via-Its-Universal-Connector.pdf). Black Hat USA 2025: [From Prompts to Pwns: Exploiting and Securing AI Agents](https://i.blackhat.com/BH-USA-25/Presentations/US-25-Lynch-From-Prompts-to-Pwns.pdf) (Becca Lynch, Rich Harang). OWASP GenAI @ RSAC 2026: Securing MCP: OWASP Best Practices - A Practical Guide (Idan Habler, Joshua Beck, Tomer Elias). BSides Seattle 2026: [MCP LFI in 60 Minutes (or Your Money Back)](https://bsides-seattle-2026.sessionize.com/session/1079777) (Kurt Boberg).
+BlueHat Redmond 2026: [Securing the Future of AI: Securing MCP with Defense in Depth Patterns](https://www.youtube.com/watch?v=cVWB58kEt-Y). CoSAI at RSAC 2026: Securing MCP: Mitigating New Threats in Agentic AI Deployments (Sarah Novotny, Jason Clinton). Black Hat Europe 2025: [MCP Unchained: Compromising The AI Agent Ecosystem Via Its "Universal Connector"](https://github.com/Tencent/AI-Infra-Guard/blob/main/BHEU-25-MCP-Unchained-Compromising-The-AI-Agent-Ecosystem-Via-Its-Universal-Connector.pdf). Black Hat USA 2025: [From Prompts to Pwns: Exploiting and Securing AI Agents](https://i.blackhat.com/BH-USA-25/Presentations/US-25-Lynch-From-Prompts-to-Pwns.pdf) (Becca Lynch, Rich Harang). OWASP GenAI @ RSAC 2026: Securing MCP: OWASP Best Practices - A Practical Guide (Idan Habler, Joshua Beck, Tomer Elias). BSides Seattle 2026: [MCP LFI in 60 Minutes (or Your Money Back)](https://bsides-seattle-2026.sessionize.com/session/1079777) (Kurt Boberg).
 
 ## Free trainings and courses
 
@@ -127,7 +128,7 @@ Audio and live sessions on MCP security and related agentic risk, with metadata 
 
 [Browse all security tooling →](mcp_security_tools.md)
 
-50+ scanners, monitors, policy and gateway controls, secrets and dependency checks, and related utilities with deployment notes and safety warnings where relevant. Organized by category: MCP scanners, runtime monitoring, policy engines, secrets and dependency scanners, red team tools, and blue team / SOC tools.
+50+ scanners, monitors, policy and gateway controls, secrets and dependency checks, and related open-source utilities with deployment notes and safety warnings where relevant. Organized by category: MCP scanners, runtime monitoring, policy engines, secrets and dependency scanners, red team tools, and open-source observability.
 
 See `mcp_security_tools.md` for 
 
@@ -158,7 +159,7 @@ Categories include
 Structured catalogs of published CVEs affecting MCP servers, clients, SDKs, and related tooling.
 
 **Notable:**
-See `mcp_cve.md` for [mcp-cve-project](https://github.com/vermava/mcp-cve-project) and [vulnerablemcp](https://github.com/vineethsai/vulnerablemcp).
+See `mcp_cve.md` for [mcp-cve-project](https://github.com/mcp-security-project/mcp-cve-project) (**571** CVE rows synced; upstream README states **570** coverage) and [vulnerablemcp](https://github.com/vineethsai/vulnerablemcp).
 
 ## Vulnerable environments and labs
 
