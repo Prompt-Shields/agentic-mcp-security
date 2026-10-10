@@ -298,6 +298,7 @@ _STOPWORDS = frozenset(
     "what when where which who why with about any are some me my you your".split()
 )
 TITLE_WEIGHT = 3  # a title word counts as this many body words
+PHRASE_BOOST = 1.5
 _BM25_K1, _BM25_B = 1.2, 0.75
 
 
@@ -309,6 +310,11 @@ def stem(word: str) -> str:
         if word.endswith(suffix) and len(word) - len(suffix) >= 3 and not word.endswith("ss"):
             return word[: -len(suffix)] + keep
     return word
+
+
+def _contains_run(haystack: list[str], needle: list[str]) -> bool:
+    n = len(needle)
+    return any(haystack[i : i + n] == needle for i in range(len(haystack) - n + 1))
 
 
 def tokenize(text: str) -> list[str]:
@@ -330,11 +336,14 @@ class Catalog:
         self.entries = {e.id: e for t in self.topics.values() for e in t.entries}
         # BM25 index: per-entry term counts (title words weighted up), lengths and document frequencies.
         self._tf: dict[str, Counter[str]] = {}
+        self._title_terms: dict[str, list[str]] = {}
         for eid, e in self.entries.items():
             tf = Counter(tokenize(e.text()))
-            for term in tokenize(e.title):
+            title_terms = tokenize(e.title)
+            for term in title_terms:
                 tf[term] += TITLE_WEIGHT - 1
             self._tf[eid] = tf
+            self._title_terms[eid] = title_terms
         self._len = {eid: sum(tf.values()) for eid, tf in self._tf.items()}
         self._avg_len = sum(self._len.values()) / max(len(self._len), 1)
         self._df: Counter[str] = Counter(term for tf in self._tf.values() for term in tf)
@@ -363,6 +372,8 @@ class Catalog:
             score = sum(idf[t] * tf[t] * (_BM25_K1 + 1) / (tf[t] + norm) for t in matched)
             # Prefer entries covering more of the query over ones that repeat a single word.
             score *= (len(matched) / len(terms)) ** 2
+            if len(terms) > 1 and _contains_run(self._title_terms[eid], terms):
+                score *= PHRASE_BOOST  # the title holds the whole query in order: likely the thing asked for
             if not entry.url:
                 score *= 0.5  # link-less rows are cross-references to entries listed elsewhere
             scored.append((score, eid))
