@@ -10,3 +10,12 @@ jobs:
         with:
           fetch-depth: 0
       - run: npx awesome-lint
+  MCP_Server_Tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --locked --group dev pytest

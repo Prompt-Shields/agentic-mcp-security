@@ -1,5 +1,6 @@
-> **This is an unmodified fork.** The content below is upstream's, and this
-> notice is the only Bit Pulse AI addition.
+> **This is a fork.** The content below is upstream's. The Bit Pulse AI
+> additions are this notice and the [`server/`](server/) directory, a read-only
+> MCP server that makes the list searchable from MCP clients.
 >
 > - **Upstream:** [mcp-security-project/awesome-agentic-mcp-security](https://github.com/mcp-security-project/awesome-agentic-mcp-security)
 > - **Why it is here:** a reading list we track for Model Context Protocol security research. **An MCP Gateway is a proxy that sits between an AI agent and the Model Context Protocol servers it calls, so tool invocations can be authenticated, filtered, and logged in one place** — the failure modes catalogued upstream are the ones such a gateway has to address.
