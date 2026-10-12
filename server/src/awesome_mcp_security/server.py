@@ -22,6 +22,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 
 from .catalog import Catalog, LiveCatalog
+from .config_review import MAX_CONFIG_CHARS, review_config
 from .prompts import register_prompts
 
 CONTENT_DIR_ENV = "AWESOME_MCP_SECURITY_CONTENT_DIR"
@@ -225,6 +226,34 @@ def build_server(source: Catalog | LiveCatalog) -> MCPServer:
             "cve_catalogs": [e.to_brief() for e in cve_page.entries if not e.cves] if cve_page else [],
             "note": CONTENT_NOTE,
         }
+
+    @mcp.tool(annotations=_READ_ONLY)
+    def review_client_config(
+        config: Annotated[
+            str,
+            Field(
+                description="The MCP client config as JSON text: claude_desktop_config.json, .mcp.json, a Cursor "
+                "or VS Code mcp section, or just the mcpServers object.",
+                max_length=MAX_CONFIG_CHARS,
+            ),
+        ],
+    ) -> dict[str, Any]:
+        """Check a user's MCP client config for risky settings and for what the list says about each server.
+
+        Use when the user shares or asks about their MCP setup (claude_desktop_config.json,
+        .mcp.json, Cursor or VS Code MCP settings) or asks whether their configured servers
+        are safe. For each server it reports local findings by severity (plaintext secrets,
+        unpinned packages or images, plain-HTTP remotes, risky container flags, broad
+        filesystem access, shell wrappers) and catalog entries naming the package, CVE
+        records first. Nothing is run, installed or fetched. Secret values are never echoed:
+        findings name the key only, and `launches` is redacted. Tell the user to rotate any
+        credential reported as plaintext, since it was in the text they pasted.
+        """
+        try:
+            result = review_config(config, catalog())
+        except ValueError as exc:
+            raise ToolError(str(exc)) from None
+        return {**result, "note": CONTENT_NOTE}
 
     def read_page(slug: str) -> str:
         # Served from the current snapshot, so a page edited or removed since startup reads

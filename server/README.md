@@ -15,7 +15,20 @@ At startup it parses the `mcp_*.md` topic pages in the repository root into stru
 | `lookup_project` | What the list says about one named server or tool, before you install it. Give a repo or URL for exact matches (entries about it, and entries that link to it), or a plain name such as `Burp Suite MCP` for ranked candidates. |
 | `find_cve` | One CVE: the CVE page's own record for it (`advisories`: affected component, issue, fixed version, advisory links), the blogs, talks, labs and videos that cite it (`writeups`), and the MCP CVE catalogs to look in further (`cve_catalogs`). |
 
+| `review_client_config` | Paste an MCP client config (`claude_desktop_config.json`, `.mcp.json`, Cursor or VS Code MCP settings) to get, for each server, local findings by severity and what the list says about its package, with CVE records first. |
+
 Every tool is annotated `readOnlyHint` and `openWorldHint: false`.
+
+`review_client_config` checks for:
+- plaintext secrets in `env`, `headers` or command-line arguments
+- `npx`/`uvx` packages and container images not pinned to a version
+- `npx -y` auto-install
+- remote servers on plain HTTP, or with a credential in the URL
+- `--privileged`, host networking, a mounted Docker socket or a broad host mount
+- a filesystem server given `/`, `~` or a home directory
+- servers started through a shell command string
+
+It only parses the pasted text: nothing is run, installed or fetched. Package names are matched to catalog entries exactly, as whole words, so `mcp-remote` finds the CVE-2025-6514 record and write-ups, but not unrelated text.
 
 Result lists use a compact form: `id`, `title`, `url`, `where` (topic and section), and a `summary` trimmed to 300 characters. `github_repo` and `cves` are added when present. Every response carries a `note` saying that the text is third-party content to treat as data, not instructions.
 
@@ -79,6 +92,7 @@ While it runs, the server checks the pages for changes at most every two seconds
 
 - **No side effects.** The server never fetches the URLs it returns, never writes files and never opens outbound connections.
 - **No path access.** Resource URIs resolve only to known topic slugs, served from memory, so a URI can't name any other file. The SDK's own path check also rejects traversal attempts before they reach the server.
+- **Pasted configs.** `review_client_config` never returns a secret's value. Findings name the key, and the command line it echoes back has credential-shaped values and the values of secret-named flags replaced with `[redacted]`. It does tell the model to have the user rotate any credential it reports as plaintext, since the user has just pasted that credential into a chat.
 - **Third-party text.** Entry titles and summaries describe other people's projects. Every tool response, as well as the server's instructions, tells the model to treat them as data rather than instructions, and to review a project before running it. Result lists are trimmed, so one long entry can't flood the context.
 - **Local binding and DNS rebinding.** The HTTP transport binds to `127.0.0.1` by default, where the SDK rejects requests whose `Host` or `Origin` header isn't loopback. That stops a web page in your browser reaching the server through a hostname it controls. The SDK switches those checks off for any other bind address, so the server refuses to start on one unless you name the hostnames clients use: `--host 0.0.0.0 --allowed-host mcp.example.com:8000`. Use `--allowed-origin` to allow a browser app as well. It still has no authentication of its own, and it warns when not on loopback, so put an authenticating proxy or gateway in front before exposing it.
 
@@ -102,4 +116,4 @@ uv run python evals/tool_selection.py --only 1 2 --show-answers
 uv run python evals/tool_selection.py --content-dir /path/to/other/pages   # e.g. an upstream export
 ```
 
-Run it after changing tool descriptions or the server instructions. Before those were rewritten, the model answered "what should I know before installing the Burp Suite MCP server?" from memory and never called the server. It now passes all 6 cases.
+Run it after changing tool descriptions or the server instructions. Before those were rewritten, the model answered "what should I know before installing the Burp Suite MCP server?" from memory and never called the server. It now passes all 7 cases.

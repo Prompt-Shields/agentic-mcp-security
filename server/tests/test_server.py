@@ -163,7 +163,7 @@ async def client(sample_dir: Path):
 @pytest.mark.anyio
 async def test_tools_listed_read_only(client: Client):
     tools = {t.name: t for t in (await client.list_tools()).tools}
-    assert set(tools) == {"list_topics", "search", "list_entries", "get_entry", "find_cve", "lookup_project"}
+    assert set(tools) == {"list_topics", "search", "list_entries", "get_entry", "find_cve", "lookup_project", "review_client_config"}
     assert all(t.annotations.read_only_hint for t in tools.values())
 
 

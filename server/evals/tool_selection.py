@@ -54,6 +54,13 @@ CASES = [
         "Is github.com/semgrep/mcp covered anywhere, and what does the coverage say about using it safely?",
         {"lookup_project"},
     ),
+    Case(
+        "Here's my Claude Desktop config. Is anything in it risky?\n"
+        '{"mcpServers": {"github": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"], '
+        '"env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_EXAMPLEEXAMPLEEXAMPLEEXAMPLEEXAMPLE00"}}, '
+        '"remote": {"command": "npx", "args": ["mcp-remote@0.1.10", "https://mcp.example.com/sse"]}}}',
+        {"review_client_config"},
+    ),
     Case("Write a two-line rhyme about autumn leaves.", set()),
 ]
 
