@@ -28,7 +28,7 @@ Entry ids look like `security_tools:1a2b3c4d`. They're derived from the entry's 
 | `vet_mcp_server` | `server`: a name, GitHub repo or URL | A pre-install review covering what the list says about the server, each key risk area, which listed scanners fit, and a go/no-go checklist. |
 | `threat_model` | `deployment`: a plain description | A threat model of that deployment against the list's risk areas and security principles. |
 
-Both prompts embed the relevant catalog text inside `<catalog_data>` tags, trimmed to keep the prompt short. Where the overview page has them, they also quote its *Deployment Checklist* (for vetting) and its *Threat Modeling Questions* and *Common Failure Modes* (for threat models), and they leave those blocks out on a copy of the list without them. `tests/test_search_quality.py` fails if a section the prompts depend on is renamed or emptied. They tell the model to treat that text as data. Angle brackets in it are replaced so that text can't close the tag early.
+Both prompts embed the relevant catalog text inside `<catalog_data>` tags, trimmed to keep the prompt short. They tell the model to treat that text as data, and angle brackets in it are replaced so the text can't close the tag early. Where the overview page has them, the prompts also quote its *Deployment Checklist* (for vetting) and its *Threat Modeling Questions* and *Common Failure Modes* (for threat models). On a copy of the list without those sections, the blocks are left out. `tests/test_search_quality.py` fails if a section the prompts depend on is renamed or emptied.
 
 ## Resources
 
@@ -99,6 +99,7 @@ The parser handles pipe tables, HTML `<table>` rows, bulleted links and bare lin
 cd server
 uv run python evals/tool_selection.py              # all cases
 uv run python evals/tool_selection.py --only 1 2 --show-answers
+uv run python evals/tool_selection.py --content-dir /path/to/other/pages   # e.g. an upstream export
 ```
 
 Run it after changing tool descriptions or the server instructions. Before those were rewritten, the model answered "what should I know before installing the Burp Suite MCP server?" from memory and never called the server. It now passes all 6 cases.

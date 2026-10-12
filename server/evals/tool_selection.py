@@ -118,6 +118,9 @@ def main() -> int:
     parser.add_argument("--only", type=int, nargs="*", help="Run only these case numbers (1-based).")
     parser.add_argument("--timeout", type=int, default=300, help="Seconds per case.")
     parser.add_argument("--show-answers", action="store_true")
+    parser.add_argument(
+        "--content-dir", help="Serve the topic pages from this directory instead of the checkout (e.g. an upstream export)."
+    )
     args = parser.parse_args()
 
     numbered = [(i, c) for i, c in enumerate(CASES, 1) if not args.only or i in args.only]
@@ -125,7 +128,11 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         config = Path(tmp) / "mcp.json"
         config.write_text(json.dumps({
-            "mcpServers": {SERVER_NAME: {"command": "uv", "args": ["run", "--directory", str(SERVER_DIR), SERVER_NAME]}}
+            "mcpServers": {SERVER_NAME: {
+                "command": "uv",
+                "args": ["run", "--directory", str(SERVER_DIR), SERVER_NAME]
+                + (["--content-dir", str(Path(args.content_dir).resolve())] if args.content_dir else []),
+            }}
         }))
         with ThreadPoolExecutor(max_workers=4) as pool:
             outcomes = list(pool.map(lambda c: run_case(c, config, args.model, args.timeout), cases))
