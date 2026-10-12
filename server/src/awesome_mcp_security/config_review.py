@@ -32,6 +32,8 @@ _SECRET_VALUE = re.compile(
 _SECRET_WORDS = r"(?:token|secret|passw(?:or)?d|api[_-]?key|access[_-]?key|private[_-]?key|credential)"
 _SECRET_FLAG = re.compile(rf"--?[\w-]*{_SECRET_WORDS}[\w-]*", re.I)
 _SECRET_FLAG_VALUE = re.compile(rf"(--?[\w-]*{_SECRET_WORDS}[\w-]*)(=|\s+)(?![$-])(\S+)", re.I)
+# A password in a URL's userinfo: postgresql://user:password@host/db, https://user:pass@host.
+_URL_PASSWORD = re.compile(r"(\b[a-z][a-z0-9+.-]*://[^/\s:@]+:)([^/\s@$][^/\s@]*)(@)", re.I)  # "$VAR" is fine
 # A reference to the environment or a secret store, not a literal secret.
 _INDIRECT = re.compile(r"^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$|^\{\{.*\}\}$|^op://|^<.*>$|^$")
 _RUNNERS = {"npx", "bunx", "pnpx", "uvx", "pipx", "yarn", "pnpm"}
@@ -83,6 +85,7 @@ def parse_servers(text: str) -> dict[str, dict]:
 
 def _redact(value: str) -> str:
     value = _SECRET_VALUE.sub("[redacted]", value)
+    value = _URL_PASSWORD.sub(lambda m: f"{m.group(1)}[redacted]{m.group(3)}", value)
     return _SECRET_FLAG_VALUE.sub(lambda m: f"{m.group(1)}{m.group(2)}[redacted]", value)
 
 
@@ -134,7 +137,11 @@ def review_server(name: str, spec: dict) -> ServerReview:
             value = str(value)
             if _INDIRECT.match(value.strip()):
                 continue
-            if _SECRET_VALUE.search(value) or (_SECRET_KEY.search(str(key)) and len(value) >= 8):
+            if (
+                _SECRET_VALUE.search(value)
+                or _URL_PASSWORD.search(value)
+                or (_SECRET_KEY.search(str(key)) and len(value) >= 8)
+            ):
                 findings.append(Finding(
                     "high", "plaintext-secret",
                     f"{where}.{key} holds what looks like a credential in plain text. Load it from the OS "
@@ -147,7 +154,13 @@ def review_server(name: str, spec: dict) -> ServerReview:
             and i + 1 < len(args)
             and not args[i + 1].startswith(("-", "$"))
         )
-        if _SECRET_VALUE.search(arg) or _SECRET_FLAG_VALUE.search(arg) or literal_after_flag:
+        if _URL_PASSWORD.search(arg):
+            findings.append(Finding(
+                "high", "password-in-connection-string",
+                f"args[{i}] is a connection string with the password written into it. Give the server a "
+                "least-privilege (ideally read-only) account and supply the password through the environment.",
+            ))
+        elif _SECRET_VALUE.search(arg) or _SECRET_FLAG_VALUE.search(arg) or literal_after_flag:
             findings.append(Finding(
                 "high", "secret-in-args",
                 f"args[{i}] passes what looks like a credential on the command line, where other local processes "
@@ -213,6 +226,8 @@ def review_server(name: str, spec: dict) -> ServerReview:
             ))
 
     if url:
+        if _URL_PASSWORD.search(url):
+            findings.append(Finding("high", "secret-in-url", "The server URL has a password written into it."))
         if url.lower().startswith("http://") and not _LOCAL_HOSTS.match(url):
             findings.append(Finding(
                 "high", "plaintext-transport",

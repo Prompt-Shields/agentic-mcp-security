@@ -10,7 +10,7 @@ from awesome_mcp_security.config_review import parse_servers, review_config, rev
 from awesome_mcp_security.server import build_server
 
 GITHUB_PAT = "ghp_" + "a" * 36
-SECRETS = [GITHUB_PAT, "SUPERSECRET123", "hunter2hunter2", "plainpassword99"]
+SECRETS = [GITHUB_PAT, "SUPERSECRET123", "hunter2hunter2", "plainpassword99", "dbpass42", "envdbpass7"]
 
 RISKY = {
     "mcpServers": {
@@ -25,6 +25,11 @@ RISKY = {
         "api": {"url": "http://mcp.example.com/mcp?api_key=SUPERSECRET123"},
         "wrapped": {"command": "bash", "args": ["-c", "node server.js --api-key hunter2hunter2"]},
         "flag": {"command": "node", "args": ["server.js", "--password", "plainpassword99"]},
+        "pg": {
+            "command": "npx",
+            "args": ["@modelcontextprotocol/server-postgres@0.6.2", "postgresql://app:dbpass42@db.internal/prod"],
+            "env": {"DATABASE_URL": "postgres://ro:envdbpass7@db/x"},
+        },
         "safe": {
             "command": "uvx",
             "args": ["acme-mcp==1.2.3"],
@@ -64,8 +69,9 @@ def test_findings_per_server(catalog: Catalog):
     assert set(rules(r, "api")) == {"plaintext-transport", "secret-in-url"}
     assert set(rules(r, "wrapped")) == {"shell-wrapper", "secret-in-args"}
     assert rules(r, "flag") == ["secret-in-args"]
+    assert set(rules(r, "pg")) == {"password-in-connection-string", "plaintext-secret"}
     assert rules(r, "safe") == []  # pinned; env references and "bearer" are not secrets
-    assert r["summary"]["high"] == 7  # github 1, box 2, api 2, wrapped 1, flag 1
+    assert r["summary"]["high"] == 9  # github 1, box 2, api 2, wrapped 1, flag 1, pg 2
     # High findings come first within a server.
     box = next(s for s in r["servers"] if s["server"] == "box")
     assert [f["severity"] for f in box["findings"]] == sorted(
@@ -79,6 +85,8 @@ def test_secret_values_never_returned(catalog: Catalog):
         assert secret not in out
     wrapped = next(s for s in review_config(json.dumps(RISKY), catalog)["servers"] if s["server"] == "wrapped")
     assert wrapped["launches"] == "bash -c node server.js --api-key [redacted]"
+    pg = next(s for s in review_config(json.dumps(RISKY), catalog)["servers"] if s["server"] == "pg")
+    assert pg["launches"].endswith("postgresql://app:[redacted]@db.internal/prod")
 
 
 def test_catalog_matches_exact_package_names(catalog: Catalog):
@@ -131,10 +139,16 @@ def test_localhost_http_is_fine():
     assert review.findings == []
 
 
+def test_password_from_environment_is_fine():
+    review = review_server("pg", {"command": "node", "args": ["s.js", "postgresql://app:${DB_PASS}@db/x"],
+                                  "env": {"DATABASE_URL": "postgres://ro:$PASS@db/x"}})
+    assert review.findings == []
+
+
 @pytest.mark.anyio
 async def test_tool(catalog: Catalog):
     async with Client(build_server(catalog), raise_exceptions=True) as c:
         result = (await c.call_tool("review_client_config", {"config": json.dumps(RISKY)})).structured_content
-        assert result["summary"]["high"] == 7 and "not instructions" in result["note"]
+        assert result["summary"]["high"] == 9 and "not instructions" in result["note"]
         bad = await c.call_tool("review_client_config", {"config": "{nope"})
         assert bad.is_error and "not valid JSON" in bad.content[0].text

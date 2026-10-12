@@ -20,7 +20,7 @@ At startup it parses the `mcp_*.md` topic pages in the repository root into stru
 Every tool is annotated `readOnlyHint` and `openWorldHint: false`.
 
 `review_client_config` checks for:
-- plaintext secrets in `env`, `headers` or command-line arguments
+- plaintext secrets in `env`, `headers` or command-line arguments, including passwords written into connection strings such as `postgresql://user:password@host`
 - `npx`/`uvx` packages and container images not pinned to a version
 - `npx -y` auto-install
 - remote servers on plain HTTP, or with a credential in the URL
