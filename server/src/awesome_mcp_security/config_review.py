@@ -21,7 +21,9 @@ _SECRET_WORDS = r"(?:token|secret|passw(?:or)?d|api[_-]?key|access[_-]?key|priva
 # Names that point *at* a secret rather than holding one: --token-file, API_KEY_PATH, AUTH_PROVIDER.
 _POINTER_SUFFIX = r"(?:[_-](?:file|path|dir|env|name|id|url|provider|method|type|mode|header))"
 # An env var or header name that holds a secret.
-_SECRET_KEY = re.compile(rf"^(?!.*{_POINTER_SUFFIX}$).*(?:{_SECRET_WORDS}|authorization|cookie)", re.I)
+_SECRET_KEY = re.compile(
+    rf"^(?!.*{_POINTER_SUFFIX}$).*(?:{_SECRET_WORDS}|authorization|cookie|(?:^|[_-])auth(?:$|[_-]))", re.I
+)
 # A command-line flag named for a secret: --api-key, --password (not --token-file).
 _SECRET_FLAG = re.compile(rf"--?(?![\w-]*{_POINTER_SUFFIX}$)[\w-]*{_SECRET_WORDS}[\w-]*", re.I)
 # "--api-key VALUE" / "--token=VALUE" inside a string (a shell command line, say).
@@ -39,28 +41,50 @@ _SECRET_VALUE = re.compile(
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
 )
 # A password in a URL's userinfo, user optional: postgresql://u:pw@h, redis://:pw@h. "$VAR" is fine.
-_URL_PASSWORD = re.compile(r"(\b[a-z][a-z0-9+.-]*://[^\s:@/]*:)((?!\$)[^\s@]+)(@)", re.I)
+_URL_PASSWORD = re.compile(r"(\b[a-z][a-z0-9+.-]*://[^\s:@/]*:)((?![$\d]+(?:/|$))(?!\$)[^\s@?#]+)(@)", re.I)
 # An HTTP auth header written into a string: "Authorization: Bearer abc", "X-API-Key: abc".
 _HEADER_SECRET = re.compile(
-    r"((?:proxy-)?authorization\s*:\s*(?:bearer|basic|token|apikey)?\s*|"
-    r"(?:x-[\w-]*(?:key|token|secret)|api[_-]?key|cookie)\s*:\s*)((?!\$)[^\s\"']+)",
+    r"((?:proxy-)?authorization\s*:\s*(?:(?:bearer|basic|token|apikey)\s+)?|"
+    r"(?:x-[\w-]*(?:key|token|secret)|api[_-]?key|cookie)\s*:\s*)"
+    r"(?!(?:bearer|basic|token|apikey)\b)((?![$%{])[^\s\"']+)",
+    re.I,
+)
+# NAME=value with a secret-named NAME anywhere in a string (a shell script's env prefix, say).
+_ASSIGNMENT_SECRET = re.compile(
+    r"\b([A-Za-z_][A-Za-z0-9_]*(?:token|secret|passw(?:or)?d|api_?key|access_?key|private_?key|credential)s?"
+    r"[A-Za-z0-9_]*)=(?![$%{])([^\s\"']+)",
     re.I,
 )
 # A reference to the environment or a secret store, not a literal secret.
-_INDIRECT = re.compile(r"^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$|^\{\{.*\}\}$|^op://|^<.*>$|^%[A-Za-z_]+%$|^$")
+_INDIRECT = re.compile(
+    r"^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$|^\$\{(?:input|env|config):[^}]+\}$|^\{\{.*\}\}$|^op://|^<.*>$"
+    r"|^%[A-Za-z_]+%$|^$"
+)
 _RUNNERS = {"npx", "bunx", "pnpx", "uvx", "pipx", "yarn", "pnpm", "bun"}
 _SHELLS = {"sh", "bash", "zsh", "dash", "cmd", "powershell", "pwsh"}
 _SHELL_FLAGS = {"-c", "/c", "/k", "-command", "-c:"}
 _RUNNER_SUBCOMMANDS = {"dlx", "exec", "run", "x", "tool"}
 # Runner flags that name the package to fetch, and flags that just take a value.
-_PACKAGE_FLAGS = {"-p", "--package", "--from", "--spec"}
-_VALUE_FLAGS = {"--python", "--with", "--index-url", "--extra-index-url", "--index", "--registry", "--cache",
-                "--prefix", "--python-preference", "--userconfig", "-c", "--call"}
+_PACKAGE_FLAGS = {
+    "npx": {"-p", "--package"}, "pnpx": {"-p", "--package"}, "bunx": {"-p", "--package"},
+    "pnpm": {"--package"}, "yarn": {"-p", "--package"}, "uvx": {"--from"}, "pipx": {"--spec"},
+}
+_VALUE_FLAGS = {"--python", "-p", "--with", "--index-url", "--extra-index-url", "--index", "--registry", "--cache",
+                "--prefix", "--python-preference", "--userconfig", "-c", "--call", "--pip-args"}
+# A local script or path rather than a package name: bun run ./srv.ts, npx /abs/server.js.
+_LOCAL_TARGET = re.compile(r"^(?:\.{0,2}/|[A-Za-z]:[\\/]|~/)|[\\]|\.(?:m?[jt]s|cjs|py|sh)$", re.I)
 _DOCKER_VALUE_FLAGS = {"-e", "--env", "--env-file", "-v", "--volume", "--mount", "--network", "--net", "-p",
                        "--publish", "--name", "-w", "--workdir", "-u", "--user", "--entrypoint", "-l", "--label",
                        "--platform", "--add-host", "--cap-add", "--cap-drop", "--device", "-m", "--memory", "--cpus",
                        "--pull", "--restart", "--hostname", "-h", "--dns", "--ipc", "--pid", "--security-opt",
-                       "--tmpfs", "--ulimit", "--runtime", "--gpus", "--log-driver", "--log-opt"}
+                       "--tmpfs", "--ulimit", "--runtime", "--gpus", "--log-driver", "--log-opt", "--shm-size",
+                       "-a", "--attach", "--cidfile", "--sysctl", "--group-add", "--link", "--volumes-from",
+                       "--expose", "--health-cmd", "--health-interval", "--health-retries", "--health-timeout",
+                       "--stop-signal", "--stop-timeout", "--oom-score-adj", "--cgroupns", "--cgroup-parent",
+                       "--userns", "--uts", "--isolation", "--storage-opt", "--label-file", "--mac-address",
+                       "--ip", "--ip6", "--network-alias", "--dns-search", "--dns-option", "--device-cgroup-rule",
+                       "--blkio-weight", "--cpu-shares", "-c", "--cpuset-cpus", "--cpuset-mems", "--memory-swap",
+                       "--memory-reservation", "--pids-limit", "--domainname", "--annotation"}
 _LOCAL_HOSTS = re.compile(r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:|/|$)", re.I)
 # A filesystem root or a whole home directory, on any OS.
 _BROAD_PATH = re.compile(
@@ -111,10 +135,18 @@ def _strip_jsonc(text: str) -> str:
             end = text.find("*/", i + 2)
             i = n if end < 0 else end + 2
             continue
+        elif c == ",":
+            j = i + 1
+            while j < n and text[j] in " \t\r\n":
+                j += 1
+            if j < n and text[j] in "}]":
+                i += 1
+                continue  # trailing comma
+            out.append(c)
         else:
             out.append(c)
         i += 1
-    return re.sub(r",(\s*[}\]])", r"\1", "".join(out))
+    return "".join(out)
 
 
 def parse_servers(text: str) -> dict[str, dict]:
@@ -127,7 +159,8 @@ def parse_servers(text: str) -> dict[str, dict]:
         try:
             data = json.loads(_strip_jsonc(text))  # VS Code and Cursor allow comments
         except json.JSONDecodeError as exc:
-            raise ValueError(f"not valid JSON (line {exc.lineno}, column {exc.colno}): {exc.msg}") from None
+            # Stripping keeps every newline, so the line number matches what the user pasted.
+            raise ValueError(f"not valid JSON (line {exc.lineno}): {exc.msg}") from None
     if not isinstance(data, dict):
         raise ValueError("expected a JSON object")
     for key in ("mcpServers", "servers", "mcp_servers"):
@@ -148,6 +181,7 @@ def _redact(value: str) -> str:
     value = _SECRET_VALUE.sub("[redacted]", value)
     value = _URL_PASSWORD.sub(lambda m: f"{m.group(1)}[redacted]{m.group(3)}", value)
     value = _HEADER_SECRET.sub(lambda m: f"{m.group(1)}[redacted]", value)
+    value = _ASSIGNMENT_SECRET.sub(lambda m: f"{m.group(1)}=[redacted]", value)
     return _SECRET_FLAG_VALUE.sub(lambda m: f"{m.group(1)}{m.group(2)}[redacted]", value)
 
 
@@ -181,13 +215,17 @@ def _package_of(arg: str) -> tuple[str, bool]:
     return arg, False
 
 
-def _runner_package(args: list[str]) -> str | None:
-    """The package a runner (npx, uvx, ...) fetches, skipping its own flags and their values."""
+def _runner_package(runner: str, args: list[str]) -> str | None:
+    """The package a runner (npx, uvx, ...) fetches, skipping its own flags and their values.
+
+    None when it runs a local file (bun run ./srv.ts) rather than fetching a package.
+    """
     explicit, i = None, 0
+    package_flags = _PACKAGE_FLAGS.get(runner, set())
     while i < len(args):
         arg = args[i]
         flag, eq, value = arg.partition("=")
-        if flag in _PACKAGE_FLAGS:
+        if flag in package_flags:
             explicit = value if eq else (args[i + 1] if i + 1 < len(args) else None)
             i += 1 if eq else 2
             continue
@@ -197,7 +235,9 @@ def _runner_package(args: list[str]) -> str | None:
         if arg.startswith("-") or arg in _RUNNER_SUBCOMMANDS:
             i += 1
             continue
-        return explicit or arg
+        if explicit:
+            return explicit
+        return None if _LOCAL_TARGET.search(arg) and not arg.startswith("@") else arg
     return explicit
 
 
@@ -241,8 +281,8 @@ def _review_docker(args: list[str], findings: list[Finding], packages: list[str]
                 ))
             i += 1 if eq else 2
             continue
-        if args[i].startswith("-"):
-            i += 1
+        if args[i].startswith("-") or re.fullmatch(r"\d+(?:\.\d+)?[bkmgt]?", args[i], re.I):
+            i += 1  # a flag, or the value of a flag not in the list above (sizes, counts)
             continue
         image = args[i]
         break
@@ -266,12 +306,24 @@ def _review_command(command: str, args: list[str], findings: list[Finding], pack
             "interpolated values possible. Call the program directly with an args list.",
         ))
         inner = args[flag_at + 1:]
-        if len(inner) == 1:
+        if base in {"cmd", "powershell", "pwsh"} and len(inner) > 1:
+            pass  # cmd /c npx -y pkg: the remaining args are already the command line
+        elif inner and (len(inner) == 1 or re.search(r"\s", inner[0])):
+            # sh -c 'script' [$0 args...]: the script is one string; what follows are its arguments.
             try:
                 inner = shlex.split(inner[0], posix=base not in {"cmd", "powershell", "pwsh"})
             except ValueError:
                 inner = inner[0].split()
-        prefix = " ".join([command, *args[: flag_at + 1]])
+        # Leading NAME=value words set the environment for the command that follows.
+        while inner and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", inner[0]):
+            if _is_secret_assignment(inner[0]):
+                findings.append(Finding(
+                    "high", "secret-in-args",
+                    f"The shell command sets {inner[0].partition('=')[0]} to a literal value, which is visible to "
+                    "other local processes and logs. Set it outside this file instead.",
+                ))
+            inner = inner[1:]
+        prefix = _redact(" ".join([command, *args[: flag_at + 1]]))
         if inner and depth < 2:
             return f"{prefix} " + _review_command(inner[0], inner[1:], findings, packages, depth + 1)
         return _redact(" ".join([prefix, *inner]))
@@ -295,7 +347,7 @@ def _review_command(command: str, args: list[str], findings: list[Finding], pack
             ))
 
     if base in _RUNNERS:
-        package = _runner_package(args)
+        package = _runner_package(base, args)
         if package:
             name, pinned = _package_of(package)
             packages.append(name)
@@ -329,16 +381,19 @@ def _review_command(command: str, args: list[str], findings: list[Finding], pack
             out.append("[redacted]")
             hide_next = False
             continue
-        flag, eq, _ = arg.partition("=")
+        flag, eq, rest = arg.partition("=")
         if _SECRET_FLAG.fullmatch(flag):
             out.append(f"{flag}=[redacted]" if eq else arg)
             hide_next = not eq
+            continue
+        if flag in {"-e", "--env"} and eq and _is_secret_assignment(rest):
+            out.append(f"{flag}={rest.partition('=')[0]}=[redacted]")
             continue
         if _is_secret_assignment(arg):
             out.append(f"{flag}=[redacted]")
             continue
         out.append(_redact(arg))
-    return " ".join([command, *out]).strip()
+    return _redact(" ".join([command, *out]).strip())
 
 
 def review_server(name: str, spec: dict) -> ServerReview:
@@ -357,7 +412,9 @@ def review_server(name: str, spec: dict) -> ServerReview:
     for where, table in (("env", env), ("headers", headers)):
         for key, value in table.items():
             value = str(value)
-            if _INDIRECT.match(value.strip()):
+            # "Bearer ${TOKEN}" is a reference too: look past an auth scheme word.
+            core = re.sub(r"^(?:bearer|basic|token|apikey)\s+", "", value.strip(), flags=re.I)
+            if _INDIRECT.match(core):
                 continue
             if (_SECRET_VALUE.search(value) or _URL_PASSWORD.search(value) or _HEADER_SECRET.search(f"{key}: {value}")
                     or (_SECRET_KEY.search(str(key)) and len(value) >= 8)):
@@ -371,10 +428,16 @@ def review_server(name: str, spec: dict) -> ServerReview:
     launches = _review_command(command, args, findings, packages) if command else ""
 
     if url:
-        bare, query = re.split(r"[?#]", url, maxsplit=1)[0], url[len(re.split(r"[?#]", url, maxsplit=1)[0]):]
+        bare = re.split(r"[?#]", url, maxsplit=1)[0]
+        query = url[len(bare):]
         if _URL_PASSWORD.search(url):
             findings.append(Finding("high", "secret-in-url", "The server URL has a password written into it."))
-        if re.search(r"[?&#](?:[\w-]*(?:token|key|secret|signature|sig|auth)[\w-]*)=", query, re.I):
+        names = re.findall(r"[?&#;]([\w.-]+)=", query)
+        secret_param = re.compile(
+            r"(?:^|[_.-])(?:token|key|secret|signature|sig|auth|password|pass|apikey|api[_-]key|code)(?:$|[_.-])"
+            r"|^(?:access|refresh|id)_?token$", re.I,
+        )
+        if any(secret_param.search(name) for name in names):
             findings.append(Finding(
                 "high", "secret-in-url",
                 "The server URL carries a credential in its query string or fragment, which ends up in logs and "
@@ -389,7 +452,8 @@ def review_server(name: str, spec: dict) -> ServerReview:
         packages.append(_URL_PASSWORD.sub(r"\1[redacted]\3", bare))
         launches = f"url {_redact(bare)}" + (f" ({launches})" if launches else "")
 
-    return ServerReview(name=name, launches=launches[:300], packages=packages, findings=findings)
+    # Backstop: whatever path built it, `launches` gets a last redaction pass before it leaves.
+    return ServerReview(name=name, launches=_redact(launches)[:300], packages=packages, findings=findings)
 
 
 def catalog_matches(catalog: Catalog, package: str, limit: int = 5) -> list[Entry]:

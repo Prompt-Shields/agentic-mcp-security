@@ -253,3 +253,81 @@ def test_jsonc_comments_and_trailing_commas():
 ])
 def test_pointers_to_secrets_are_not_secrets(spec: dict):
     assert review(spec).findings == []
+
+
+# Regression cases from the second review round.
+
+def test_shell_env_prefix_is_flagged_redacted_and_unwrapped():
+    token = "ghp_" + "b" * 36
+    r = review({"command": "sh", "args": ["-c", f"GITHUB_TOKEN={token} npx -y @modelcontextprotocol/server-github"]})
+    assert leaks(r, token) == []
+    assert "secret-in-args" in [f.rule for f in r.findings]
+    assert r.packages == ["@modelcontextprotocol/server-github"]  # the real command was reviewed
+
+
+def test_shell_script_with_trailing_args():
+    key = "sk-ant-" + "c" * 30
+    r = review({"command": "bash", "args": ["-c", f"npx -y srv --api-key {key}", "--"]})
+    assert leaks(r, key) == []
+    rules = [f.rule for f in r.findings]
+    assert "secret-in-args" in rules and "unpinned-package" in rules and r.packages == ["srv"]
+
+
+def test_docker_env_equals_form_redacted():
+    r = review({"command": "docker", "args": ["run", "-i", "--rm", "--env=API_TOKEN=abcdefgh12345", "mcp/github"]})
+    assert "secret-in-args" in [f.rule for f in r.findings]
+    assert leaks(r, "abcdefgh12345") == [] and "--env=API_TOKEN=[redacted]" in r.launches
+
+
+@pytest.mark.parametrize("spec", [
+    {"command": "node", "args": ["s.js"], "headers": {"Authorization": "Bearer ${TOKEN}"}},
+    {"command": "npx", "args": ["mcp-remote@0.1.16", "https://x.com/sse", "--header", "Authorization: Bearer ${AUTH_TOKEN}"]},
+    {"command": "node", "args": ["s.js"], "env": {"API_KEY": "${input:api_key}", "TOKEN": "${env:GH_TOKEN}"}},
+])
+def test_indirect_secrets_are_not_flagged(spec: dict):
+    r = review(spec)
+    assert r.findings == []
+    assert "[redacted]" not in r.launches
+
+
+@pytest.mark.parametrize("url", ["https://mcp.example.com:8443/mcp?email=a@b.com", "https://mcp.example.com/mcp?author=me",
+                                 "https://mcp.example.com/mcp?design=dark&monkey=1"])
+def test_urls_without_credentials_are_fine(url: str):
+    r = review({"url": url})
+    assert r.findings == [] and "[redacted]" not in r.launches
+
+
+def test_email_in_path_is_not_a_password():
+    r = review({"command": "node", "args": ["s.js", "https://mcp.example.com:8443/u/me@x.com"]})
+    assert r.findings == [] and "me@x.com" in r.launches
+
+
+@pytest.mark.parametrize("key", ["BASIC_AUTH", "AUTH", "PROXY_AUTH"])
+def test_auth_named_keys_are_secrets(key: str):
+    r = review({"command": "node", "args": ["s.js"], "env": {key: "user:longpassword1"}})
+    assert [f.rule for f in r.findings] == ["plaintext-secret"]
+
+
+def test_docker_unknown_value_flag_does_not_become_the_image():
+    r = review({"command": "docker", "args": ["run", "-i", "--rm", "--shm-size", "2g", "mcp/playwright"]})
+    assert r.packages == ["mcp/playwright"]
+
+
+def test_uvx_short_python_flag():
+    assert review({"command": "uvx", "args": ["-p", "3.12", "mcp-server-fetch"]}).packages == ["mcp-server-fetch"]
+
+
+@pytest.mark.parametrize("spec", [
+    {"command": "bun", "args": ["run", "/home/me/srv/index.ts"]},
+    {"command": "npx", "args": ["tsx", "./server.ts"]},  # tsx is the package here
+])
+def test_local_files_are_not_packages(spec: dict):
+    r = review(spec)
+    assert "/home/me/srv/index.ts" not in r.packages and "./server.ts" not in r.packages
+
+
+def test_jsonc_keeps_commas_inside_strings_and_reports_original_position():
+    servers = parse_servers('{\n// c\n"mcpServers": {"a": {"command": "n", "args": ["--q=[a,]", "x,}"]},},}')
+    assert servers["a"]["args"] == ["--q=[a,]", "x,}"]
+    with pytest.raises(ValueError, match="line 3"):
+        parse_servers('{\n  // comment\n  "mcpServers": {"a": }\n}')
