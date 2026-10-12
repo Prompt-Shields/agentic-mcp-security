@@ -152,3 +152,104 @@ async def test_tool(catalog: Catalog):
         assert result["summary"]["high"] == 9 and "not instructions" in result["note"]
         bad = await c.call_tool("review_client_config", {"config": "{nope"})
         assert bad.is_error and "not valid JSON" in bad.content[0].text
+
+
+# Regression cases from the code review of review_client_config.
+
+def review(spec: dict, name: str = "s"):
+    return review_server(name, spec)
+
+
+def leaks(r, *secrets: str) -> list[str]:
+    text = json.dumps({"launches": r.launches, "findings": [f.to_dict() for f in r.findings], "pk": r.packages})
+    return [s for s in secrets if s in text]
+
+
+def test_docker_env_literal_flagged_and_redacted():
+    r = review({"command": "docker", "args": ["run", "-i", "--rm", "-e", "BRAVE_API_KEY=BSAabcdef123456",
+                                               "-e", "LOG_LEVEL", "mcp/brave-search"]})
+    assert "secret-in-args" in [f.rule for f in r.findings]
+    assert leaks(r, "BSAabcdef123456") == [] and "BRAVE_API_KEY=[redacted]" in r.launches
+    assert r.packages == ["mcp/brave-search"]
+
+
+def test_auth_header_in_args_flagged_and_redacted():
+    r = review({"command": "npx", "args": ["mcp-remote@0.1.16", "https://x.com/sse", "--header",
+                                            "Authorization: Bearer abcdef1234567890"]})
+    assert "secret-in-args" in [f.rule for f in r.findings]
+    assert leaks(r, "abcdef1234567890") == [] and "Authorization: Bearer [redacted]" in r.launches
+
+
+@pytest.mark.parametrize("dsn,secret", [("redis://:supersecretpw@cache:6379", "supersecretpw"),
+                                        ("postgresql://app:pa/ss42word@db/x", "pa/ss42word")])
+def test_connection_string_variants(dsn: str, secret: str):
+    r = review({"command": "node", "args": ["s.js", dsn]})
+    assert "password-in-connection-string" in [f.rule for f in r.findings]
+    assert leaks(r, secret) == []
+
+
+def test_url_fragment_credential():
+    r = review({"url": "https://x.com/mcp#token=abcdefsecret"})
+    assert "secret-in-url" in [f.rule for f in r.findings]
+    assert leaks(r, "abcdefsecret") == [] and r.launches == "url https://x.com/mcp"
+
+
+@pytest.mark.parametrize("spec", [
+    {"command": "cmd", "args": ["/c", "npx", "-y", "mcp-remote"]},
+    {"command": "C:\\Program Files\\nodejs\\npx.cmd", "args": ["-y", "mcp-remote"]},
+    {"command": "bash", "args": ["-c", "npx -y mcp-remote"]},
+])
+def test_wrapped_and_windows_runners_are_reviewed(spec: dict):
+    r = review(spec)
+    rules = [f.rule for f in r.findings]
+    assert "unpinned-package" in rules and "auto-install" in rules and r.packages == ["mcp-remote"]
+
+
+def test_docker_image_found_after_flags_and_args():
+    r = review({"command": "docker", "args": ["run", "-i", "--rm", "--mount", "type=bind,src=/,dst=/projects",
+                                               "mcp/filesystem", "/projects"]})
+    assert r.packages == ["mcp/filesystem"]
+    rules = [f.rule for f in r.findings]
+    assert "broad-mount" in rules  # --mount src=/
+    assert any("mcp/filesystem" in f.detail for f in r.findings if f.rule == "unpinned-image")
+    assert review({"command": "docker", "args": ["run", "alpine"]}).packages == ["alpine"]
+
+
+@pytest.mark.parametrize("path", ["/Users/alice", "/home/bob/", "C:\\Users\\alice", "~"])
+def test_home_directory_is_broad(path: str):
+    r = review({"command": "npx", "args": ["@modelcontextprotocol/server-filesystem@1.0.0", path]})
+    assert [f.rule for f in r.findings] == ["broad-filesystem-access"]
+
+
+def test_project_folder_is_not_broad():
+    r = review({"command": "npx", "args": ["@modelcontextprotocol/server-filesystem@1.0.0", "/Users/alice/code"]})
+    assert r.findings == []
+
+
+@pytest.mark.parametrize("args,package", [
+    (["--python", "3.12", "mcp-server-fetch"], "mcp-server-fetch"),
+    (["--from", "mcp-server-git==0.6.2", "mcp-server-git"], "mcp-server-git"),
+    (["--registry", "https://r.example", "-y", "pkg@1.0.0"], "pkg"),
+])
+def test_runner_flag_values_are_not_the_package(args: list[str], package: str):
+    command = "uvx" if args[0] in {"--python", "--from"} else "npx"
+    assert review({"command": command, "args": args}).packages == [package]
+
+
+@pytest.mark.parametrize("bad", [5, True, None, {"a": 1}])
+def test_odd_args_do_not_crash(bad):
+    assert review({"command": "node", "args": bad}).findings == []
+
+
+def test_jsonc_comments_and_trailing_commas():
+    text = '{\n  // my servers\n  "mcpServers": {\n    "a": {"command": "node", "args": ["a.js // not a comment"],},\n  },\n}'
+    servers = parse_servers(text)
+    assert servers["a"]["args"] == ["a.js // not a comment"]
+
+
+@pytest.mark.parametrize("spec", [
+    {"command": "node", "args": ["s.js", "--token-file", "/run/secrets/token"]},
+    {"command": "node", "args": ["s.js"], "env": {"OAUTH_PROVIDER": "github-oauth", "API_KEY_PATH": "/etc/k"}},
+])
+def test_pointers_to_secrets_are_not_secrets(spec: dict):
+    assert review(spec).findings == []

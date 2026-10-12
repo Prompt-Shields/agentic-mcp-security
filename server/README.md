@@ -14,7 +14,6 @@ At startup it parses the `mcp_*.md` topic pages in the repository root into stru
 | `get_entry` | The full record for one entry (every column and link), by the id another tool returned. |
 | `lookup_project` | What the list says about one named server or tool, before you install it. Give a repo or URL for exact matches (entries about it, and entries that link to it), or a plain name such as `Burp Suite MCP` for ranked candidates. |
 | `find_cve` | One CVE: the CVE page's own record for it (`advisories`: affected component, issue, fixed version, advisory links), the blogs, talks, labs and videos that cite it (`writeups`), and the MCP CVE catalogs to look in further (`cve_catalogs`). |
-
 | `review_client_config` | Paste an MCP client config (`claude_desktop_config.json`, `.mcp.json`, Cursor or VS Code MCP settings) to get, for each server, local findings by severity and what the list says about its package, with CVE records first. |
 
 Every tool is annotated `readOnlyHint` and `openWorldHint: false`.
@@ -26,9 +25,9 @@ Every tool is annotated `readOnlyHint` and `openWorldHint: false`.
 - remote servers on plain HTTP, or with a credential in the URL
 - `--privileged`, host networking, a mounted Docker socket or a broad host mount
 - a filesystem server given `/`, `~` or a home directory
-- servers started through a shell command string
+- servers started through a shell command string (the command inside is unwrapped and reviewed too, including Windows `cmd /c` launchers)
 
-It only parses the pasted text: nothing is run, installed or fetched. Package names are matched to catalog entries exactly, as whole words, so `mcp-remote` finds the CVE-2025-6514 record and write-ups, but not unrelated text.
+It accepts JSON with comments and trailing commas, as VS Code and Cursor settings use. It only parses the pasted text: nothing is run, installed or fetched. Package names are matched to catalog entries exactly, as whole words, so `mcp-remote` finds the CVE-2025-6514 record and write-ups, but not unrelated text.
 
 Result lists use a compact form: `id`, `title`, `url`, `where` (topic and section), and a `summary` trimmed to 300 characters. `github_repo` and `cves` are added when present. Every response carries a `note` saying that the text is third-party content to treat as data, not instructions.
 
