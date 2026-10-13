@@ -1,5 +1,7 @@
 # Awesome MCP Security server
 
+<!-- mcp-name: io.github.Prompt-Shields/awesome-mcp-security -->
+
 A read-only [Model Context Protocol](https://modelcontextprotocol.io) server that makes this list searchable from any MCP client (Claude Code, Claude Desktop, Cursor, and others).
 
 At startup it parses the `mcp_*.md` topic pages in the repository root into structured entries. Each entry has a title, URL, section, summary columns, GitHub repo and cited CVE ids. It then serves those entries as tools and serves the pages themselves as resources. The pages stay the single source of truth: edit the Markdown, and a running server picks up the change on its next call.
