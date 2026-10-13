@@ -6,9 +6,30 @@ readme = "README.md"
 license = "CC0-1.0"
 requires-python = ">=3.10"
 dependencies = ["mcp>=2.3,<3"]
+keywords = ["mcp", "model-context-protocol", "security", "agentic-ai", "awesome-list", "cve"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Topic :: Security",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/Prompt-Shields/agentic-mcp-security/tree/main/server"
+Repository = "https://github.com/Prompt-Shields/agentic-mcp-security"
+Issues = "https://github.com/Prompt-Shields/agentic-mcp-security/issues"
 
 [project.scripts]
 awesome-mcp-security = "awesome_mcp_security.server:main"
+# Same entry point under the package's own name, so `uvx awesome-mcp-security-server` works
+# (that is how MCP Registry clients start a PyPI server).
+awesome-mcp-security-server = "awesome_mcp_security.server:main"
 
 [dependency-groups]
 dev = ["pytest>=8"]
@@ -21,7 +42,7 @@ build-backend = "hatchling.build"
 packages = ["src/awesome_mcp_security"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "hatch_build.py", "README.md"]
+include = ["src", "tests", "hatch_build.py", "README.md", "server.json"]
 
 [tool.hatch.build.hooks.custom]
 

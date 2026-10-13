@@ -1,0 +1,89 @@
+name: Release MCP server
+
+# Push a tag like `server-v0.1.0` to publish that version to PyPI and then the
+# MCP Registry. The tag, server/pyproject.toml and server/server.json must agree.
+on:
+  push:
+    tags: ["server-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Check the tag matches the package and registry versions
+        run: |
+          tag="${GITHUB_REF_NAME#server-v}"
+          python3 - "$tag" <<'EOF'
+          import json, sys, tomllib
+          tag = sys.argv[1]
+          pyproject = tomllib.load(open("pyproject.toml", "rb"))["project"]["version"]
+          meta = json.load(open("server.json"))
+          versions = {"tag": tag, "pyproject": pyproject, "server.json": meta["version"],
+                      "server.json package": meta["packages"][0]["version"]}
+          if len(set(versions.values())) != 1:
+              sys.exit(f"version mismatch: {versions}")
+          print(f"releasing {tag}")
+          EOF
+      - run: uv run --locked --group dev pytest
+      - run: uv build --out-dir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: server/dist/
+          if-no-files-found: error
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    # PyPI trusted publishing: no API token is stored in this repository.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/awesome-mcp-security-server/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  registry:
+    needs: pypi
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # GitHub OIDC login to the MCP Registry
+      contents: read
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.1  # pinned; bump deliberately
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install mcp-publisher
+        run: |
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          arch="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_${os}_${arch}.tar.gz" \
+            | tar xz mcp-publisher
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+      - name: Publish server to MCP Registry
+        # The registry verifies ownership by reading the README PyPI shows, which can lag
+        # the upload by a minute or two, so retry a few times.
+        run: |
+          for attempt in 1 2 3 4 5; do
+            ./mcp-publisher publish && exit 0
+            echo "attempt $attempt failed; waiting for PyPI to serve the new release"
+            sleep 30
+          done
+          exit 1
